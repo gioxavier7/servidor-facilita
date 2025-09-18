@@ -56,15 +56,26 @@ const cadastrarUsuario = async (req, res) => {
 }
 
 // ================= LOGIN =================
+// ================= LOGIN =================
 const login = async (req, res) => {
   try {
-    const { email, senha } = req.body
+    const { login, senha } = req.body // email ou telefone
 
-    if (!email || !senha) {
-      return res.status(400).json({ error: 'Email e senha são obrigatórios.' })
+    if (!login || !senha) {
+      return res.status(400).json({ error: 'Login (email ou telefone) e senha são obrigatórios.' })
     }
 
-    const usuario = await usuarioDAO.selectByEmail(email)
+    let usuario
+
+    if (login.includes('@')) {
+      // login é email
+      usuario = await usuarioDAO.selectByEmail(login)
+    } else {
+      // login é telefone, normaliza removendo tudo que não é número
+      const telefoneLimpo = login.replace(/\D/g, '')
+      usuario = await usuarioDAO.selectByTelefone(telefoneLimpo)
+    }
+
     if (!usuario) return res.status(404).json({ error: 'Usuário não encontrado.' })
 
     const senhaCorreta = await bcrypt.compare(senha, usuario.senha_hash)
@@ -89,6 +100,7 @@ const login = async (req, res) => {
     return res.status(500).json({ error: 'Erro interno no login.' })
   }
 }
+
 
 // ================= LISTAR USUARIOS =================
 const listarUsuarios = async (req, res) => {
