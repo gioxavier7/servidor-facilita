@@ -1,18 +1,14 @@
 /**
- * objetivo: DAO responsável pelo CRUD de usuários usando Prisma
- * data: 13/09/2025
- * dev: Giovanna
- * versão: 1.1
+ * DAO responsável pelo CRUD de usuários usando Prisma
+ * Data: 13/09/2025
+ * Dev: Giovanna
+ * Versão: 1.2
  */
 
 const { PrismaClient } = require('@prisma/client')
 const prisma = new PrismaClient()
 
-/**
- * Cadastra um novo usuário
- * @param {Object} usuario - {nome, email, senha_hash, telefone, tipo_conta}
- * @returns {Object|false} - usuário criado (com relacionamentos) ou false
- */
+// ================= INSERIR USUÁRIO =================
 const insertUsuario = async (usuario) => {
   try {
     const novoUsuario = await prisma.usuario.create({
@@ -31,38 +27,35 @@ const insertUsuario = async (usuario) => {
     return novoUsuario
   } catch (error) {
     console.error("Erro ao inserir usuário:", error)
-    return false
+    if (error.code === 'P2002') {
+      throw new Error(`O campo ${error.meta.target} já está em uso.`)
+    }
+    throw new Error('Erro interno ao inserir usuário.')
   }
 }
 
-/**
- * Atualiza um usuário existente
- * @param {Object} usuario - {id, nome, email, senha_hash, telefone, tipo_conta}
- * @returns {Object|false} - usuário atualizado (com relacionamentos) ou false
- */
+// ================= ATUALIZAR USUÁRIO =================
 const updateUsuario = async (id, data) => {
-    try {
-      const atualizado = await prisma.usuario.update({
-        where: { id: id },
-        data: data,
-        include: {
-          prestador: { include: { documentos: true, locais: true } },
-          contratante: true
-        }
-      })
-      return atualizado
-    } catch (error) {
-      console.error("Erro ao atualizar usuário:", error)
-      return false
+  try {
+    const atualizado = await prisma.usuario.update({
+      where: { id },
+      data,
+      include: {
+        prestador: { include: { documentos: true, locais: true } },
+        contratante: true
+      }
+    })
+    return atualizado
+  } catch (error) {
+    console.error("Erro ao atualizar usuário:", error)
+    if (error.code === 'P2002') {
+      throw new Error(`O campo ${error.meta.target} já está em uso.`)
     }
+    throw new Error('Erro interno ao atualizar usuário.')
   }
-  
+}
 
-/**
- * Deleta um usuário pelo ID
- * @param {number} id
- * @returns {Object|false} - usuário deletado (com relacionamentos) ou false
- */
+// ================= DELETAR USUÁRIO =================
 const deleteUsuario = async (id) => {
   try {
     const deletado = await prisma.usuario.delete({
@@ -75,14 +68,11 @@ const deleteUsuario = async (id) => {
     return deletado
   } catch (error) {
     console.error("Erro ao deletar usuário:", error)
-    return false
+    throw new Error('Erro interno ao deletar usuário.')
   }
 }
 
-/**
- * Retorna todos os usuários
- * @returns {Array|false} - lista de usuários com relacionamentos ou false
- */
+// ================= LISTAR TODOS USUÁRIOS =================
 const selectAllUsuario = async () => {
   try {
     const usuarios = await prisma.usuario.findMany({
@@ -95,15 +85,11 @@ const selectAllUsuario = async () => {
     return usuarios
   } catch (error) {
     console.error("Erro ao buscar usuários:", error)
-    return false
+    throw new Error('Erro interno ao listar usuários.')
   }
 }
 
-/**
- * Retorna um usuário pelo ID
- * @param {number} id
- * @returns {Object|false} - usuário com relacionamentos ou false
- */
+// ================= BUSCAR USUÁRIO POR ID =================
 const selectByIdUsuario = async (id) => {
   try {
     const usuario = await prisma.usuario.findUnique({
@@ -113,18 +99,15 @@ const selectByIdUsuario = async (id) => {
         contratante: true
       }
     })
-    return usuario || false
+    if (!usuario) throw new Error('Usuário não encontrado.')
+    return usuario
   } catch (error) {
     console.error("Erro ao buscar usuário por ID:", error)
-    return false
+    throw new Error(error.message || 'Erro interno ao buscar usuário.')
   }
 }
 
-/**
- * Retorna um usuário pelo email (para login)
- * @param {string} email
- * @returns {Object|false} - usuário com relacionamentos ou false
- */
+// ================= BUSCAR USUÁRIO POR EMAIL =================
 const selectByEmail = async (email) => {
   try {
     const usuario = await prisma.usuario.findUnique({
@@ -134,18 +117,15 @@ const selectByEmail = async (email) => {
         contratante: true
       }
     })
-    return usuario || false
+    if (!usuario) throw new Error('Usuário não encontrado.')
+    return usuario
   } catch (error) {
     console.error("Erro ao buscar usuário por email:", error)
-    return false
+    throw new Error(error.message || 'Erro interno ao buscar usuário por email.')
   }
 }
 
-/**
- * Retorna um usuário pelo telefone (para login)
- * @param {string} telefone
- * @returns {Object|false} - usuário com relacionamentos ou false
- */
+// ================= BUSCAR USUÁRIO POR TELEFONE =================
 const selectByTelefone = async (telefone) => {
   try {
     const usuario = await prisma.usuario.findUnique({
@@ -155,49 +135,43 @@ const selectByTelefone = async (telefone) => {
         contratante: true
       }
     })
-    return usuario || false
+    if (!usuario) throw new Error('Usuário não encontrado.')
+    return usuario
   } catch (error) {
     console.error('Erro ao buscar usuário por telefone:', error)
-    return false
+    throw new Error(error.message || 'Erro interno ao buscar usuário por telefone.')
   }
 }
 
-
-/**
- * Atualiza o perfil do usuário (dados básicos + contratante/prestador)
- * Apenas os campos enviados em `dados` serão atualizados
- * @param {number} usuarioId - ID do usuário
- * @param {object} dados - Dados a atualizar
- * @returns {object} - { message, usuario } ou { error }
- */
+// ================= ATUALIZAR PERFIL =================
 const updatePerfil = async (usuarioId, dados) => {
   try {
     // 0) Checa se o email já existe em outro usuário
     if (dados.email) {
       const emailExistente = await prisma.usuario.findUnique({
         where: { email: dados.email }
-      });
+      })
       if (emailExistente && emailExistente.id !== usuarioId) {
-        return { error: "Email já está em uso por outro usuário." };
+        throw new Error("Email já está em uso por outro usuário.")
       }
     }
 
-    // 1) Atualiza dados básicos do usuário (apenas os que vierem)
-    const dadosParaAtualizar = {};
-    if (dados.nome) dadosParaAtualizar.nome = dados.nome;
-    if (dados.email) dadosParaAtualizar.email = dados.email;
-    if (dados.telefone) dadosParaAtualizar.telefone = dados.telefone;
-    if (dados.senha_hash) dadosParaAtualizar.senha_hash = dados.senha_hash;
+    // 1) Atualiza dados básicos
+    const dadosParaAtualizar = {}
+    if (dados.nome) dadosParaAtualizar.nome = dados.nome
+    if (dados.email) dadosParaAtualizar.email = dados.email
+    if (dados.telefone) dadosParaAtualizar.telefone = dados.telefone
+    if (dados.senha_hash) dadosParaAtualizar.senha_hash = dados.senha_hash
 
     const usuarioAtualizado = await prisma.usuario.update({
       where: { id: usuarioId },
       data: dadosParaAtualizar
-    });
+    })
 
-    // 2) Se for contratante e houver dados para atualizar
+    // 2) Atualiza contratante
     if (usuarioAtualizado.tipo_conta === 'CONTRATANTE') {
-      const dadosContratante = {};
-      if (dados.necessidade) dadosContratante.necessidade = dados.necessidade;
+      const dadosContratante = {}
+      if (dados.necessidade) dadosContratante.necessidade = dados.necessidade
       if (dados.localizacao) {
         dadosContratante.localizacao = {
           update: {
@@ -209,22 +183,20 @@ const updatePerfil = async (usuarioId, dados) => {
             latitude: dados.localizacao.latitude,
             longitude: dados.localizacao.longitude
           }
-        };
+        }
       }
-
       if (Object.keys(dadosContratante).length > 0) {
         await prisma.contratante.update({
           where: { id_usuario: usuarioId },
           data: dadosContratante
-        });
+        })
       }
     }
 
-    // 3) Se for prestador e houver dados para atualizar
+    // 3) Atualiza prestador
     if (usuarioAtualizado.tipo_conta === 'PRESTADOR') {
-      const dadosPrestador = {};
+      const dadosPrestador = {}
 
-      // Documentos
       if (dados.documentos) {
         dadosPrestador.documentos = {
           updateMany: dados.documentos
@@ -248,53 +220,42 @@ const updatePerfil = async (usuarioId, dados) => {
           deleteMany: dados.documentos
             .filter(d => d.action === "delete")
             .map(d => ({ id: d.id }))
-        };
+        }
       }
 
-      // Locais
       if (dados.locais) {
         dadosPrestador.locais = {
-          connect: dados.locais
-            .filter(l => l.action === "connect")
-            .map(l => ({ id: l.id })),
-          disconnect: dados.locais
-            .filter(l => l.action === "disconnect")
-            .map(l => ({ id: l.id })),
+          connect: dados.locais.filter(l => l.action === "connect").map(l => ({ id: l.id })),
+          disconnect: dados.locais.filter(l => l.action === "disconnect").map(l => ({ id: l.id })),
           set: dados.locais.some(l => l.action === "set")
             ? dados.locais.filter(l => l.action === "set").map(l => ({ id: l.id }))
             : undefined
-        };
+        }
       }
 
       if (Object.keys(dadosPrestador).length > 0) {
         await prisma.prestador.update({
           where: { id_usuario: usuarioId },
           data: dadosPrestador
-        });
+        })
       }
     }
 
-    // 4) Busca o usuário completo atualizado (com relações)
+    // 4) Retorna usuário completo
     const usuarioCompleto = await prisma.usuario.findUnique({
       where: { id: usuarioId },
       include: {
         prestador: { include: { documentos: true, locais: true } },
         contratante: { include: { localizacao: true } }
       }
-    });
+    })
 
-    return { message: "Perfil atualizado com sucesso", usuario: usuarioCompleto };
+    return { message: "Perfil atualizado com sucesso", usuario: usuarioCompleto }
   } catch (error) {
-    console.error("Erro no updatePerfil DAO:", error);
-
-    // Captura erro de constraint unique do Prisma (P2002)
-    if (error.code === "P2002") {
-      return { error: `O campo ${error.meta.target} já está em uso.` };
-    }
-
-    throw error;
+    console.error("Erro no updatePerfil DAO:", error)
+    throw new Error(error.message || 'Erro interno ao atualizar perfil.')
   }
-};
+}
 
 module.exports = {
   insertUsuario,

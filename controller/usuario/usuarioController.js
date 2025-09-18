@@ -14,11 +14,10 @@ require('dotenv').config()
 // ================= CADASTRAR USUARIO =================
 const cadastrarUsuario = async (req, res) => {
   try {
-    const { nome, email, telefone, senha_hash} = req.body
+    const { nome, email, telefone, senha_hash } = req.body
 
-    // validações
     if (!nome || !email || !telefone || !senha_hash) {
-      return res.status(400).json({ error: 'Preencha todos os campos obrigatórios' })
+      return res.status(400).json({ error: 'Preencha todos os campos obrigatórios.' })
     }
 
     const senha = await bcrypt.hash(senha_hash, 10)
@@ -30,6 +29,10 @@ const cadastrarUsuario = async (req, res) => {
       senha_hash: senha,
       tipo_conta: null
     })
+
+    if (!usuario) {
+      return res.status(500).json({ error: 'Erro ao cadastrar usuário.' })
+    }
 
     // gerar token JWT
     const token = jwt.sign(
@@ -48,7 +51,7 @@ const cadastrarUsuario = async (req, res) => {
     })
   } catch (error) {
     console.error('Erro ao cadastrar usuario:', error)
-    return res.status(500).json({ error: 'Erro ao cadastrar usuario' })
+    return res.status(500).json({ error: 'Erro interno ao cadastrar usuário.' })
   }
 }
 
@@ -57,11 +60,15 @@ const login = async (req, res) => {
   try {
     const { email, senha } = req.body
 
+    if (!email || !senha) {
+      return res.status(400).json({ error: 'Email e senha são obrigatórios.' })
+    }
+
     const usuario = await usuarioDAO.selectByEmail(email)
-    if (!usuario) return res.status(404).json({ error: 'Usuário não encontrado' })
+    if (!usuario) return res.status(404).json({ error: 'Usuário não encontrado.' })
 
     const senhaCorreta = await bcrypt.compare(senha, usuario.senha_hash)
-    if (!senhaCorreta) return res.status(401).json({ error: 'Senha incorreta' })
+    if (!senhaCorreta) return res.status(401).json({ error: 'Senha incorreta.' })
 
     const token = jwt.sign(
       { id: usuario.id, tipo_conta: usuario.tipo_conta },
@@ -69,7 +76,7 @@ const login = async (req, res) => {
       { expiresIn: '8h' }
     )
 
-    return res.json({
+    return res.status(200).json({
       message: 'Login realizado com sucesso!',
       token,
       usuario,
@@ -79,7 +86,7 @@ const login = async (req, res) => {
     })
   } catch (error) {
     console.error('Erro no login:', error)
-    return res.status(500).json({ error: 'Erro no login' })
+    return res.status(500).json({ error: 'Erro interno no login.' })
   }
 }
 
@@ -87,10 +94,10 @@ const login = async (req, res) => {
 const listarUsuarios = async (req, res) => {
   try {
     const usuarios = await usuarioDAO.selectAllUsuario()
-    return res.json(usuarios)
+    return res.status(200).json(usuarios)
   } catch (error) {
     console.error('Erro ao listar usuarios:', error)
-    return res.status(500).json({ error: 'Erro ao listar usuarios' })
+    return res.status(500).json({ error: 'Erro interno ao listar usuários.' })
   }
 }
 
@@ -101,13 +108,18 @@ const buscarUsuario = async (req, res) => {
     const usuario = await usuarioDAO.selectByIdUsuario(parseInt(id))
 
     if (!usuario) {
-      return res.status(404).json({ error: 'Usuário não encontrado' })
+      return res.status(404).json({ error: 'Usuário não encontrado.' })
     }
 
-    return res.json(usuario)
+    // só permite ver o próprio usuário
+    if (req.usuario.id !== usuario.id) {
+      return res.status(403).json({ error: 'Acesso negado.' })
+    }
+
+    return res.status(200).json(usuario)
   } catch (error) {
     console.error('Erro ao buscar usuario:', error)
-    return res.status(500).json({ error: 'Erro ao buscar usuario' })
+    return res.status(500).json({ error: 'Erro interno ao buscar usuário.' })
   }
 }
 
@@ -115,16 +127,29 @@ const buscarUsuario = async (req, res) => {
 const atualizarUsuario = async (req, res) => {
   try {
     const { id } = req.params
+
+    // só permite atualizar o próprio usuário
+    if (req.usuario.id !== parseInt(id)) {
+      return res.status(403).json({ error: 'Acesso negado.' })
+    }
+
     const data = req.body
+    if (data.senha_hash) {
+      data.senha_hash = await bcrypt.hash(data.senha_hash, 10)
+    }
 
     const usuarioAtualizado = await usuarioDAO.updateUsuario(parseInt(id), data)
-    return res.json({
+    if (!usuarioAtualizado) {
+      return res.status(404).json({ error: 'Usuário não encontrado.' })
+    }
+
+    return res.status(200).json({
       message: 'Usuário atualizado com sucesso!',
       usuario: usuarioAtualizado
     })
   } catch (error) {
     console.error('Erro ao atualizar usuario:', error)
-    return res.status(500).json({ error: 'Erro ao atualizar usuario' })
+    return res.status(500).json({ error: 'Erro interno ao atualizar usuário.' })
   }
 }
 
@@ -132,28 +157,51 @@ const atualizarUsuario = async (req, res) => {
 const deletarUsuario = async (req, res) => {
   try {
     const { id } = req.params
-    await usuarioDAO.deleteUsuario(parseInt(id))
 
-    return res.json({ message: 'Usuário deletado com sucesso!' })
+    // só permite deletar o próprio usuário
+    if (req.usuario.id !== parseInt(id)) {
+      return res.status(403).json({ error: 'Acesso negado.' })
+    }
+
+    const deletado = await usuarioDAO.deleteUsuario(parseInt(id))
+    if (!deletado) {
+      return res.status(404).json({ error: 'Usuário não encontrado.' })
+    }
+
+    return res.status(200).json({ message: 'Usuário deletado com sucesso!' })
   } catch (error) {
     console.error('Erro ao deletar usuario:', error)
-    return res.status(500).json({ error: 'Erro ao deletar usuario' })
+    return res.status(500).json({ error: 'Erro interno ao deletar usuário.' })
   }
 }
 
+// ================= ATUALIZAR PERFIL =================
 const atualizarPerfil = async (req, res) => {
   try {
-    const usuarioId = parseInt(req.params.id);
-    const dados = req.body;
+    const usuarioId = parseInt(req.params.id)
 
-    const resultado = await usuarioDAO.updatePerfil(usuarioId, dados);
+    // só permite atualizar o próprio usuário
+    if (req.usuario.id !== usuarioId) {
+      return res.status(403).json({ error: 'Acesso negado.' })
+    }
 
-    res.status(200).json(resultado);
+    const dados = req.body
+    if (dados.senha_hash) {
+      dados.senha_hash = await bcrypt.hash(dados.senha_hash, 10)
+    }
+
+    const resultado = await usuarioDAO.updatePerfil(usuarioId, dados)
+
+    if (resultado.error) {
+      return res.status(400).json({ error: resultado.error })
+    }
+
+    return res.status(200).json(resultado)
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: "Erro ao atualizar perfil" });
+    console.error('Erro ao atualizar perfil:', error)
+    return res.status(500).json({ error: 'Erro interno ao atualizar perfil.' })
   }
-};
+}
 module.exports = {
   cadastrarUsuario,
   login,

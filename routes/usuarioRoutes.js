@@ -10,8 +10,8 @@ router.post('/login', usuarioController.login)
 // crud
 router.get('/', usuarioController.listarUsuarios)
 router.get('/:id', usuarioController.buscarUsuario)
-router.put('/:id', usuarioController.atualizarUsuario)
-router.delete('/:id', usuarioController.deletarUsuario)
+router.put('/:id', autenticarToken, usuarioController.atualizarUsuario)
+router.delete('/:id', autenticarToken, usuarioController.deletarUsuario)
 
 //update perfil
 router.put('/:id/perfil', usuarioController.atualizarPerfil);
