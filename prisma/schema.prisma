@@ -1,0 +1,104 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+// datasource e generator
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// =================== USUARIO ===================
+model Usuario {
+  id          Int           @id @default(autoincrement())
+  nome        String
+  senha_hash  String
+  email       String        @unique
+  telefone    String        @unique
+  tipo_conta  TipoConta?
+  criado_em   DateTime      @default(now())
+
+  // Relações
+  contratante Contratante?
+  prestador   Prestador?
+}
+
+// ENUM para tipo de conta
+enum TipoConta {
+  CONTRATANTE
+  PRESTADOR
+}
+
+// =================== LOCALIZACAO ===================
+model Localizacao {
+  id          Int           @id @default(autoincrement())
+  logradouro  String
+  numero      String?
+  bairro      String
+  cidade      String
+  cep         String?
+  latitude    Decimal
+  longitude   Decimal
+
+  // Relações
+  contratantes Contratante[]
+  prestadores  Prestador[]   // N:N implícita com Prestador
+}
+
+// =================== CONTRATANTE ===================
+model Contratante {
+  id             Int          @id @default(autoincrement())
+  necessidade    Necessidade?
+  id_usuario     Int          @unique
+  id_localizacao Int
+
+  usuario       Usuario       @relation(fields: [id_usuario], references: [id])
+  localizacao   Localizacao   @relation(fields: [id_localizacao], references: [id])
+}
+
+// ENUM para necessidade
+enum Necessidade {
+  IDOSO
+  DEF_VISUAL
+  DEF_AUDITIVA
+  DEF_MOTORA
+  DEF_INTELECTUAL
+}
+
+// =================== PRESTADOR ===================
+model Prestador {
+  id         Int           @id @default(autoincrement())
+  id_usuario Int           @unique
+
+  usuario    Usuario       @relation(fields: [id_usuario], references: [id])
+  documentos Documento[]
+  locais     Localizacao[] // N:N implícita com Localizacao
+}
+
+// =================== DOCUMENTO ===================
+model Documento {
+  id             Int          @id @default(autoincrement())
+  tipo_documento TipoDocumento
+  valor          String
+  data_validade  DateTime?
+  arquivo_url    String?
+  id_prestador   Int
+
+  prestador      Prestador    @relation(fields: [id_prestador], references: [id])
+}
+
+// ENUM para tipo de documento
+enum TipoDocumento {
+  RG
+  CPF
+  CNH_EAR
+  TIPO_VEICULO
+  MODELO_VEICULO
+  ANO_VEICULO
+}
