@@ -141,39 +141,19 @@ const deletarUsuario = async (req, res) => {
   }
 }
 
-//========== DEFINIR TIPO DE CONTA ==========
-const definirTipoConta = async (req, res) => {
+const atualizarPerfil = async (req, res) => {
   try {
-    const { tipo_conta } = req.body
-    const id_usuario = req.usuario.id  // extraído do JWT
+    const usuarioId = parseInt(req.params.id);
+    const dados = req.body;
 
-    if (!tipo_conta || !["CONTRATANTE", "PRESTADOR"].includes(tipo_conta)) {
-      return res.status(400).json({ message: "Tipo de conta inválido." })
-    }
+    const resultado = await usuarioDAO.updatePerfil(usuarioId, dados);
 
-    const usuarioAtualizado = await usuarioDAO.atualizarTipoConta(id_usuario, tipo_conta)
-
-    if (!usuarioAtualizado) {
-      return res.status(500).json({ message: "Erro ao atualizar tipo de conta." })
-    }
-
-    // Define o próximo passo dependendo do tipo de conta
-    const proximo_passo = tipo_conta === "CONTRATANTE"
-      ? "completar_perfil_contratante"
-      : "completar_perfil_prestador"
-
-    return res.status(200).json({
-      message: "Tipo de conta definido com sucesso!",
-      usuario: usuarioAtualizado,
-      proximo_passo
-    })
-
+    res.status(200).json(resultado);
   } catch (error) {
-    console.error(error)
-    return res.status(500).json({ message: "Erro interno no servidor." })
+    console.error(error);
+    res.status(500).json({ error: "Erro ao atualizar perfil" });
   }
-}
-
+};
 module.exports = {
   cadastrarUsuario,
   login,
@@ -181,5 +161,5 @@ module.exports = {
   buscarUsuario,
   atualizarUsuario,
   deletarUsuario,
-  definirTipoConta
+  atualizarPerfil
 }

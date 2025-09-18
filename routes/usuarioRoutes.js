@@ -13,8 +13,7 @@ router.get('/:id', usuarioController.buscarUsuario)
 router.put('/:id', usuarioController.atualizarUsuario)
 router.delete('/:id', usuarioController.deletarUsuario)
 
-// definir tipo de conta
-router.put('/tipo-conta', autenticarToken, usuarioController.definirTipoConta)
-
+//update perfil
+router.put('/:id/perfil', usuarioController.atualizarPerfil);
 
 module.exports = router

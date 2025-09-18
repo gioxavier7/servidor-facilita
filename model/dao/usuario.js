@@ -162,25 +162,139 @@ const selectByTelefone = async (telefone) => {
   }
 }
 
-/**
- * Atualiza o tipo de conta de um usuário
- * @param {number} id - ID do usuário
- * @param {string} tipoConta - "CONTRATANTE" ou "PRESTADOR"
- * @returns {Object|false} - usuário atualizado ou false
- */
-const atualizarTipoConta = async (id, tipoConta) => {
-  try {
-    const atualizado = await prisma.usuario.update({
-      where: { id },
-      data: { tipo_conta: tipoConta }
-    })
 
-    return atualizado
+/**
+ * Atualiza o perfil do usuário (dados básicos + contratante/prestador)
+ * Apenas os campos enviados em `dados` serão atualizados
+ * @param {number} usuarioId - ID do usuário
+ * @param {object} dados - Dados a atualizar
+ * @returns {object} - { message, usuario } ou { error }
+ */
+const updatePerfil = async (usuarioId, dados) => {
+  try {
+    // 0) Checa se o email já existe em outro usuário
+    if (dados.email) {
+      const emailExistente = await prisma.usuario.findUnique({
+        where: { email: dados.email }
+      });
+      if (emailExistente && emailExistente.id !== usuarioId) {
+        return { error: "Email já está em uso por outro usuário." };
+      }
+    }
+
+    // 1) Atualiza dados básicos do usuário (apenas os que vierem)
+    const dadosParaAtualizar = {};
+    if (dados.nome) dadosParaAtualizar.nome = dados.nome;
+    if (dados.email) dadosParaAtualizar.email = dados.email;
+    if (dados.telefone) dadosParaAtualizar.telefone = dados.telefone;
+    if (dados.senha_hash) dadosParaAtualizar.senha_hash = dados.senha_hash;
+
+    const usuarioAtualizado = await prisma.usuario.update({
+      where: { id: usuarioId },
+      data: dadosParaAtualizar
+    });
+
+    // 2) Se for contratante e houver dados para atualizar
+    if (usuarioAtualizado.tipo_conta === 'CONTRATANTE') {
+      const dadosContratante = {};
+      if (dados.necessidade) dadosContratante.necessidade = dados.necessidade;
+      if (dados.localizacao) {
+        dadosContratante.localizacao = {
+          update: {
+            logradouro: dados.localizacao.logradouro,
+            numero: dados.localizacao.numero,
+            bairro: dados.localizacao.bairro,
+            cidade: dados.localizacao.cidade,
+            cep: dados.localizacao.cep,
+            latitude: dados.localizacao.latitude,
+            longitude: dados.localizacao.longitude
+          }
+        };
+      }
+
+      if (Object.keys(dadosContratante).length > 0) {
+        await prisma.contratante.update({
+          where: { id_usuario: usuarioId },
+          data: dadosContratante
+        });
+      }
+    }
+
+    // 3) Se for prestador e houver dados para atualizar
+    if (usuarioAtualizado.tipo_conta === 'PRESTADOR') {
+      const dadosPrestador = {};
+
+      // Documentos
+      if (dados.documentos) {
+        dadosPrestador.documentos = {
+          updateMany: dados.documentos
+            .filter(d => d.action === "update")
+            .map(d => ({
+              where: { id: d.id },
+              data: {
+                valor: d.valor,
+                data_validade: d.data_validade ? new Date(d.data_validade) : null,
+                arquivo_url: d.arquivo_url || null
+              }
+            })),
+          create: dados.documentos
+            .filter(d => d.action === "create")
+            .map(d => ({
+              tipo_documento: d.tipo_documento,
+              valor: d.valor,
+              data_validade: d.data_validade ? new Date(d.data_validade) : null,
+              arquivo_url: d.arquivo_url || null
+            })),
+          deleteMany: dados.documentos
+            .filter(d => d.action === "delete")
+            .map(d => ({ id: d.id }))
+        };
+      }
+
+      // Locais
+      if (dados.locais) {
+        dadosPrestador.locais = {
+          connect: dados.locais
+            .filter(l => l.action === "connect")
+            .map(l => ({ id: l.id })),
+          disconnect: dados.locais
+            .filter(l => l.action === "disconnect")
+            .map(l => ({ id: l.id })),
+          set: dados.locais.some(l => l.action === "set")
+            ? dados.locais.filter(l => l.action === "set").map(l => ({ id: l.id }))
+            : undefined
+        };
+      }
+
+      if (Object.keys(dadosPrestador).length > 0) {
+        await prisma.prestador.update({
+          where: { id_usuario: usuarioId },
+          data: dadosPrestador
+        });
+      }
+    }
+
+    // 4) Busca o usuário completo atualizado (com relações)
+    const usuarioCompleto = await prisma.usuario.findUnique({
+      where: { id: usuarioId },
+      include: {
+        prestador: { include: { documentos: true, locais: true } },
+        contratante: { include: { localizacao: true } }
+      }
+    });
+
+    return { message: "Perfil atualizado com sucesso", usuario: usuarioCompleto };
   } catch (error) {
-    console.error("Erro ao atualizar tipo de conta:", error)
-    return false
+    console.error("Erro no updatePerfil DAO:", error);
+
+    // Captura erro de constraint unique do Prisma (P2002)
+    if (error.code === "P2002") {
+      return { error: `O campo ${error.meta.target} já está em uso.` };
+    }
+
+    throw error;
   }
-}
+};
 
 module.exports = {
   insertUsuario,
@@ -190,5 +304,5 @@ module.exports = {
   selectByIdUsuario,
   selectByEmail,
   selectByTelefone,
-  atualizarTipoConta
+  updatePerfil
 }
