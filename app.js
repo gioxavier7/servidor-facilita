@@ -13,6 +13,7 @@ require('dotenv').config()
 //import das routes
 const usuarioRoutes = require('./routes/usuarioRoutes')
 const contratanteRoutes = require('./routes/contratanteRoutes')
+const prestadorRoutes = require('./routes/prestadorRoutes')
 
 const app = express()
 app.use(bodyParser.json())
@@ -38,6 +39,9 @@ app.use('/v1/facilita/usuario', usuarioRoutes)
 
 // ROTAS DE CONTRATANTE
 app.use('/v1/facilita/contratante', contratanteRoutes)
+
+// ROTAS DE PRESTADOR
+app.use('/v1/facilita/prestador', prestadorRoutes)
 
 // ========== START DO SERVIDOR =========
 const PORT = process.env.PORT || 3000
