@@ -9,7 +9,7 @@ function autenticarToken(req, res, next) {
     }
 
     try {
-        const decoded = jwt.verify(token, process.env.SECRET_KEY)
+        const decoded = jwt.verify(token, process.env.JWT_SECRET)
         req.usuario = decoded // armazena dados do usuario no req
         next()
     } catch (error) {

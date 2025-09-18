@@ -12,14 +12,14 @@ require('dotenv').config()
 
 //import das routes
 const usuarioRoutes = require('./routes/usuarioRoutes')
-
+const contratanteRoutes = require('./routes/contratanteRoutes')
 
 const app = express()
 app.use(bodyParser.json())
 
 //configuração de CORS
 app.use((req, res, next) => {
-  res.header('Access-Control-Allow-Origin', 'http://localhost:5173')
+  res.header('Access-Control-Allow-Origin', 'http://localhost:5173', '*')
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS')
   res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization')
   next()
@@ -31,7 +31,8 @@ app.use((req, res, next) => {
 // ROTAS DE USUÁRIO (auth + CRUD)
 app.use('/v1/facilita/usuario', usuarioRoutes)
 
-
+// ROTAS DE CONTRATANTE
+app.use('/v1/facilita/contratante', contratanteRoutes)
 
 // ========== START DO SERVIDOR =========
 const PORT = process.env.PORT || 3000
