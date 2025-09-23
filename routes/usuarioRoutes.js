@@ -16,4 +16,8 @@ router.delete('/:id', autenticarToken, usuarioController.deletarUsuario)
 //update perfil
 router.put('/:id/perfil', usuarioController.atualizarPerfil);
 
+//redefinir senha
+router.post('/recuperar-senha', usuarioController.solicitarRecuperacaoSenha);
+router.post('/redefinir-senha', usuarioController.redefinirSenha);
+
 module.exports = router

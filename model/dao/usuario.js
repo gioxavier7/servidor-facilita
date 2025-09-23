@@ -26,7 +26,7 @@ const insertUsuario = async (usuario) => {
     })
     return novoUsuario
   } catch (error) {
-    console.error("Erro ao inserir usuário:", error)
+    console.error('Erro ao inserir usuário:', error)
     if (error.code === 'P2002') {
       throw new Error(`O campo ${error.meta.target} já está em uso.`)
     }
@@ -47,7 +47,7 @@ const updateUsuario = async (id, data) => {
     })
     return atualizado
   } catch (error) {
-    console.error("Erro ao atualizar usuário:", error)
+    console.error('Erro ao atualizar usuário:', error)
     if (error.code === 'P2002') {
       throw new Error(`O campo ${error.meta.target} já está em uso.`)
     }
@@ -67,7 +67,7 @@ const deleteUsuario = async (id) => {
     })
     return deletado
   } catch (error) {
-    console.error("Erro ao deletar usuário:", error)
+    console.error('Erro ao deletar usuário:', error)
     throw new Error('Erro interno ao deletar usuário.')
   }
 }
@@ -84,7 +84,7 @@ const selectAllUsuario = async () => {
     })
     return usuarios
   } catch (error) {
-    console.error("Erro ao buscar usuários:", error)
+    console.error('Erro ao buscar usuários:', error)
     throw new Error('Erro interno ao listar usuários.')
   }
 }
@@ -102,7 +102,7 @@ const selectByIdUsuario = async (id) => {
     if (!usuario) throw new Error('Usuário não encontrado.')
     return usuario
   } catch (error) {
-    console.error("Erro ao buscar usuário por ID:", error)
+    console.error('Erro ao buscar usuário por ID:', error)
     throw new Error(error.message || 'Erro interno ao buscar usuário.')
   }
 }
@@ -120,7 +120,7 @@ const selectByEmail = async (email) => {
     if (!usuario) throw new Error('Usuário não encontrado.')
     return usuario
   } catch (error) {
-    console.error("Erro ao buscar usuário por email:", error)
+    console.error('Erro ao buscar usuário por email:', error)
     throw new Error(error.message || 'Erro interno ao buscar usuário por email.')
   }
 }
@@ -152,7 +152,7 @@ const updatePerfil = async (usuarioId, dados) => {
         where: { email: dados.email }
       })
       if (emailExistente && emailExistente.id !== usuarioId) {
-        throw new Error("Email já está em uso por outro usuário.")
+        throw new Error('Email já está em uso por outro usuário.')
       }
     }
 
@@ -200,7 +200,7 @@ const updatePerfil = async (usuarioId, dados) => {
       if (dados.documentos) {
         dadosPrestador.documentos = {
           updateMany: dados.documentos
-            .filter(d => d.action === "update")
+            .filter(d => d.action === 'update')
             .map(d => ({
               where: { id: d.id },
               data: {
@@ -210,7 +210,7 @@ const updatePerfil = async (usuarioId, dados) => {
               }
             })),
           create: dados.documentos
-            .filter(d => d.action === "create")
+            .filter(d => d.action === 'create')
             .map(d => ({
               tipo_documento: d.tipo_documento,
               valor: d.valor,
@@ -218,17 +218,17 @@ const updatePerfil = async (usuarioId, dados) => {
               arquivo_url: d.arquivo_url || null
             })),
           deleteMany: dados.documentos
-            .filter(d => d.action === "delete")
+            .filter(d => d.action === 'delete')
             .map(d => ({ id: d.id }))
         }
       }
 
       if (dados.locais) {
         dadosPrestador.locais = {
-          connect: dados.locais.filter(l => l.action === "connect").map(l => ({ id: l.id })),
-          disconnect: dados.locais.filter(l => l.action === "disconnect").map(l => ({ id: l.id })),
-          set: dados.locais.some(l => l.action === "set")
-            ? dados.locais.filter(l => l.action === "set").map(l => ({ id: l.id }))
+          connect: dados.locais.filter(l => l.action === 'connect').map(l => ({ id: l.id })),
+          disconnect: dados.locais.filter(l => l.action === 'disconnect').map(l => ({ id: l.id })),
+          set: dados.locais.some(l => l.action === 'set')
+            ? dados.locais.filter(l => l.action === 'set').map(l => ({ id: l.id }))
             : undefined
         }
       }
@@ -250,12 +250,27 @@ const updatePerfil = async (usuarioId, dados) => {
       }
     })
 
-    return { message: "Perfil atualizado com sucesso", usuario: usuarioCompleto }
+    return { message: 'Perfil atualizado com sucesso', usuario: usuarioCompleto }
   } catch (error) {
-    console.error("Erro no updatePerfil DAO:", error)
+    console.error('Erro no updatePerfil DAO:', error)
     throw new Error(error.message || 'Erro interno ao atualizar perfil.')
   }
 }
+
+// ================= ATUALIZAR SENHA =================
+const updaterSenha = async (usuarioId, novaSenhaHash) => {
+  try {
+    const atualizado = await prisma.usuario.update({
+      where: { id: usuarioId },
+      data: { senha_hash: novaSenhaHash }
+    });
+    return atualizado;
+  } catch (error) {
+    console.error('Erro ao atualizar senha:', error);
+    throw new Error('Erro interno ao atualizar a senha.');
+  }
+};
+
 
 module.exports = {
   insertUsuario,
@@ -265,5 +280,6 @@ module.exports = {
   selectByIdUsuario,
   selectByEmail,
   selectByTelefone,
-  updatePerfil
+  updatePerfil,
+  updaterSenha
 }
