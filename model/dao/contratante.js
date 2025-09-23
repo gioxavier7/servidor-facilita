@@ -1,125 +1,135 @@
 /**
- * Controller responsável pelas regras e autentificação de contratante
- * Data: 13/09/2025
- * Dev: Giovanna
- * Versão: 1.1
+ * objetivo: DAO responsável pelo CRUD de contratantes usando Prisma
+ * data: 13/09/2025
+ * dev: Giovanna
+ * versão: 1.0
  */
 
-const contratanteDAO = require('../../model/dao/contratante')
+const { PrismaClient } = require('@prisma/client')
+const prisma = new PrismaClient()
 
-// ================= CADASTRAR CONTRATANTE =================
-const cadastrarContratante = async (req, res) => {
+/**
+ * cadastra um novo contratante
+ * @param {Object} contratante - {id_usuario, id_localizacao, necessidade}
+ * @returns {Object|false} - contratante criado ou false em caso de erro
+ */
+const insertContratante = async (contratante) => {
   try {
-    const { id_localizacao, necessidade } = req.body
-    const id_usuario = req.usuario.id // do JWT
-
-    // validação básica
-    if (!id_localizacao || !necessidade) {
-      return res.status(400).json({ message: 'Dados inválidos ou insuficientes.' })
-    }
-
-    const novoContratante = await contratanteDAO.insertContratante({
-      id_usuario,
-      id_localizacao,
-      necessidade
+    const novoContratante = await prisma.contratante.create({
+      data: {
+        id_usuario: contratante.id_usuario,
+        id_localizacao: contratante.id_localizacao,
+        necessidade: contratante.necessidade
+      },
+      include: {
+        usuario: true,
+        localizacao: true
+      }
     })
 
-    return res.status(201).json({
-      message: 'Contratante criado com sucesso!',
-      contratante: novoContratante
-    })
-
+    return novoContratante
   } catch (error) {
-    console.error('Erro ao cadastrar contratante:', error)
-    return res.status(500).json({ message: error.message || 'Erro interno no servidor.' })
+    console.error("Erro ao inserir contratante:", error)
+    return false
   }
 }
 
-// ================= LISTAR TODOS OS CONTRATANTES =================
-const listarContratantes = async (req, res) => {
+/**
+ * atualiza um contratante existente
+ * @param {Object} contratante - {id, id_localizacao, necessidade}
+ * @returns {Object|false} - contratante atualizado (com dados completos) ou false
+ */
+const updateContratante = async function (contratante) {
   try {
-    const contratantes = await contratanteDAO.selectAllContratante()
-    return res.status(200).json(contratantes)
-  } catch (error) {
-    console.error('Erro ao listar contratantes:', error)
-    return res.status(500).json({ message: error.message || 'Erro interno no servidor.' })
-  }
-}
-
-// ================= BUSCAR CONTRATANTE POR ID =================
-const buscarContratante = async (req, res) => {
-  try {
-    const id = parseInt(req.params.id)
-    if (isNaN(id)) {
-      return res.status(400).json({ message: 'ID inválido.' })
-    }
-
-    const contratante = await contratanteDAO.selectByIdContratante(id)
-    if (!contratante) {
-      return res.status(404).json({ message: 'Contratante não encontrado.' })
-    }
-
-    return res.status(200).json(contratante)
-  } catch (error) {
-    console.error('Erro ao buscar contratante:', error)
-    return res.status(500).json({ message: error.message || 'Erro interno no servidor.' })
-  }
-}
-
-// ================= ATUALIZAR CONTRATANTE =================
-const atualizarContratante = async (req, res) => {
-  try {
-    const { id_localizacao, necessidade } = req.body
-    const id = parseInt(req.params.id)
-
-    if (!id_localizacao || !necessidade) {
-      return res.status(400).json({ message: 'Dados inválidos ou insuficientes.' })
-    }
-
-    const atualizado = await contratanteDAO.updateContratante({
-      id,
-      id_localizacao,
-      necessidade
+    const atualizado = await prisma.contratante.update({
+      where: { id: contratante.id },
+      data: {
+        id_localizacao: contratante.id_localizacao,
+        necessidade: contratante.necessidade
+      },
+      include: {
+        usuario: true,
+        localizacao: true
+      }
     })
 
-    if (!atualizado) {
-      return res.status(404).json({ message: 'Contratante não encontrado ou erro ao atualizar.' })
-    }
-
-    return res.status(200).json({
-      message: 'Contratante atualizado com sucesso!',
-      contratante: atualizado
-    })
+    return atualizado
   } catch (error) {
     console.error('Erro ao atualizar contratante:', error)
-    return res.status(500).json({ message: error.message || 'Erro interno no servidor.' })
+    return false
   }
 }
 
-// ================= DELETAR CONTRATANTE =================
-const deletarContratante = async (req, res) => {
+/**
+ * deleta um contratante pelo ID
+ * @param {number} id
+ * @returns {Object|false} - contratante deletado (com dados completos) ou false
+ */
+const deleteContratante = async function(id){
   try {
-    const id = parseInt(req.params.id)
-    const deletado = await contratanteDAO.deleteContratante(id)
-
-    if (!deletado) {
-      return res.status(404).json({ message: 'Contratante não encontrado ou erro ao deletar.' })
-    }
-
-    return res.status(200).json({
-      message: 'Contratante deletado com sucesso!',
-      contratante: deletado
+    const deletado = await prisma.contratante.delete({
+      where: { id: id },
+      include: {
+        usuario: true,
+        localizacao: true
+      }
     })
+
+    return deletado
   } catch (error) {
-    console.error('Erro ao deletar contratante:', error)
-    return res.status(500).json({ message: error.message || 'Erro interno no servidor.' })
+    console.error('Erro ao deletar contratante:', error)  
+    return false
   }
 }
+
+/**
+ * retorna todos os contratantes (com dados completos)
+ * @returns {Array|false} - lista de contratantes ou false
+ */
+const selectAllContratante = async function(){
+  try {
+    const contratantes = await prisma.contratante.findMany({
+      orderBy: { id: 'desc' },
+      include: {
+        usuario: true,
+        localizacao: true
+      }
+    })
+
+    return contratantes
+  } catch (error) {
+    console.error('Erro ao buscar contratantes: ', error)   
+    return false
+  }
+}
+
+/**
+ * Retorna um contratante pelo ID (com dados completos)
+ * @param {number} id
+ * @returns {Object|false} - contratante ou false
+ */
+const selectByIdContratante = async (id) => {
+  try {
+    const contratante = await prisma.contratante.findUnique({
+      where: { id: id },
+      include: {
+        usuario: true,
+        localizacao: true
+      }
+    })
+
+    return contratante || false;
+  } catch (error) {
+    console.error("Erro ao buscar contratante por ID:", error)
+    return false
+  }
+}
+
 
 module.exports = {
-  cadastrarContratante,
-  listarContratantes,
-  buscarContratante,
-  atualizarContratante,
-  deletarContratante
+  insertContratante,
+  selectAllContratante,
+  selectByIdContratante,
+  updateContratante,
+  deleteContratante
 }
