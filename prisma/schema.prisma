@@ -34,6 +34,9 @@ model Localizacao {
   longitude    Decimal
   contratantes Contratante[]
   prestadores  Prestador[]   @relation("LocalizacaoToPrestador")
+  servicos  Servico[]
+
+  @@map("localizacao")
 }
 
 model Contratante {
@@ -97,8 +100,8 @@ model Servico {
   id_contratante   Int
   id_prestador     Int?
   id_categoria     Int?
+  id_localizacao   Int?          // 🔹 novo relacionamento
   descricao        String
-  local_entrega    String?
   status           StatusServico @default(PENDENTE)
   data_solicitacao DateTime      @default(now())
   data_conclusao   DateTime?
@@ -106,10 +109,12 @@ model Servico {
   contratante Contratante @relation(fields: [id_contratante], references: [id])
   prestador   Prestador?  @relation(fields: [id_prestador], references: [id])
   categoria   Categoria?  @relation(fields: [id_categoria], references: [id])
+  localizacao Localizacao? @relation(fields: [id_localizacao], references: [id])
   pagamentos  Pagamento[]
 
   @@map("servico")
 }
+
 
 enum StatusServico {
   PENDENTE

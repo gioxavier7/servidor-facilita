@@ -20,6 +20,8 @@ const usuarioRoutes = require('./routes/usuarioRoutes')
 const contratanteRoutes = require('./routes/contratanteRoutes')
 const prestadorRoutes = require('./routes/prestadorRoutes')
 const localizacaoRoutes = require('./routes/localizacaoRoutes')
+const servicoRoutes = require('./routes/servicoRoutes')
+const categoriaRoutes = require('./routes/categoriaRoutes')
 
 const app = express()
 app.use(bodyParser.json())
@@ -59,6 +61,13 @@ app.use('/v1/facilita/prestador', prestadorRoutes)
 
 // ROTAS DE LOCALIZACAO
 app.use('/v1/facilita/localizacao', localizacaoRoutes)
+
+// ROTAS DE SERVIÇO
+app.use('/v1/facilita/servico', servicoRoutes)
+
+// ROTAS DE CATEGORIA
+app.use('/v1/facilita/categoria', categoriaRoutes)
+
 
 // ========== START DO SERVIDOR =========
 const PORT = process.env.PORT || 3000
