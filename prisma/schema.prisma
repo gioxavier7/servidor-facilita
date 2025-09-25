@@ -84,12 +84,20 @@ model RecuperacaoSenha {
   @@map("recuperacao_senha")
 }
 
+model Categoria {
+  id       Int       @id @default(autoincrement())
+  nome     String    @unique
+  servicos Servico[]
+
+  @@map("categoria")
+}
+
 model Servico {
   id               Int           @id @default(autoincrement())
   id_contratante   Int
   id_prestador     Int?
+  id_categoria     Int?
   descricao        String
-  categoria        String?
   local_entrega    String?
   status           StatusServico @default(PENDENTE)
   data_solicitacao DateTime      @default(now())
@@ -97,6 +105,7 @@ model Servico {
 
   contratante Contratante @relation(fields: [id_contratante], references: [id])
   prestador   Prestador?  @relation(fields: [id_prestador], references: [id])
+  categoria   Categoria?  @relation(fields: [id_categoria], references: [id])
   pagamentos  Pagamento[]
 
   @@map("servico")
