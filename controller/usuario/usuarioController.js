@@ -37,10 +37,11 @@ const cadastrarUsuario = async (req, res) => {
 
     // gerar token JWT
     const token = jwt.sign(
-      { id: usuario.id, tipo_conta: usuario.tipo_conta },
+      { id: usuario.id, tipo_conta: usuario.tipo_conta, email: usuario.email },
       process.env.JWT_SECRET,
       { expiresIn: '8h' }
     )
+
 
     return res.status(201).json({
       message: 'Usuário cadastrado com sucesso!',
@@ -72,7 +73,7 @@ const login = async (req, res) => {
       // login é email
       usuario = await usuarioDAO.selectByEmail(login)
     } else {
-      // login é telefone, normaliza removendo tudo que não é número
+      // login é telefone, removendo tudo que não é número
       const telefoneLimpo = login.replace(/\D/g, '')
       usuario = await usuarioDAO.selectByTelefone(telefoneLimpo)
     }
@@ -83,7 +84,7 @@ const login = async (req, res) => {
     if (!senhaCorreta) return res.status(401).json({ error: 'Senha incorreta.' })
 
     const token = jwt.sign(
-      { id: usuario.id, tipo_conta: usuario.tipo_conta },
+      { id: usuario.id, tipo_conta: usuario.tipo_conta, email: usuario.email},
       process.env.JWT_SECRET,
       { expiresIn: '8h' }
     )
@@ -221,10 +222,17 @@ const solicitarRecuperacaoSenha = async (req, res) => {
   try {
     const { email } = req.body;
 
-    if (!email) return res.status(400).json({ error: 'E-mail é obrigatório' });
+    if (!email) 
+      return res.status(400).json({ error: 'E-mail é obrigatório' });
+
+    // validação
+    if (email !== req.usuario.email) {
+  return res.status(403).json({ error: 'Você só pode solicitar recuperação para o seu próprio e-mail.' })
+}
 
     const usuario = await usuarioDAO.selectByEmail(email);
-    if (!usuario) return res.status(404).json({ error: 'Usuário não encontrado' });
+    if (!usuario) 
+      return res.status(404).json({ error: 'Usuário não encontrado' });
 
     const token = jwt.sign(
       { id_usuario: usuario.id },
@@ -249,10 +257,17 @@ const solicitarRecuperacaoSenha = async (req, res) => {
 const redefinirSenha = async (req, res) => {
   const { token, novaSenha } = req.body;
 
-  if (!novaSenha) return res.status(400).json({ error: 'A nova senha é obrigatória' });
+  if (!novaSenha) 
+    return res.status(400).json({ error: 'A nova senha é obrigatória' });
 
   try {
     const payload = jwt.verify(token, process.env.JWT_SECRET);
+
+    // validação
+    if (payload.id_usuario !== req.usuario.id) {
+      return res.status(403).json({ error: 'Você não tem permissão para alterar a senha de outro usuário.' });
+    }
+
     const senhaCriptografada = await bcrypt.hash(novaSenha, 10);
     await usuarioDAO.updaterSenha(payload.id_usuario, senhaCriptografada);
 
@@ -264,6 +279,7 @@ const redefinirSenha = async (req, res) => {
     res.status(400).json({ error: 'Token inválido ou expirado' });
   }
 };
+
 
 module.exports = {
   cadastrarUsuario,
