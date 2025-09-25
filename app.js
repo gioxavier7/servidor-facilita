@@ -19,6 +19,7 @@ require('dotenv').config({
 const usuarioRoutes = require('./routes/usuarioRoutes')
 const contratanteRoutes = require('./routes/contratanteRoutes')
 const prestadorRoutes = require('./routes/prestadorRoutes')
+const localizacaoRoutes = require('./routes/localizacaoRoutes')
 
 const app = express()
 app.use(bodyParser.json())
@@ -55,6 +56,9 @@ app.use('/v1/facilita/contratante', contratanteRoutes)
 
 // ROTAS DE PRESTADOR
 app.use('/v1/facilita/prestador', prestadorRoutes)
+
+// ROTAS DE LOCALIZACAO
+app.use('/v1/facilita/localizacao', localizacaoRoutes)
 
 // ========== START DO SERVIDOR =========
 const PORT = process.env.PORT || 3000

@@ -17,6 +17,10 @@ model Usuario {
   criado_em   DateTime     @default(now())
   contratante Contratante?
   prestador   Prestador?
+
+  //relação para recuperação de senha
+  recuperacoes RecuperacaoSenha[]
+  carteira     Carteira?
 }
 
 model Localizacao {
@@ -39,6 +43,8 @@ model Contratante {
   id_localizacao Int
   localizacao    Localizacao  @relation(fields: [id_localizacao], references: [id])
   usuario        Usuario      @relation(fields: [id_usuario], references: [id])
+  servico        Servico[]
+  pagamento      Pagamento[]
 
   @@index([id_localizacao], map: "Contratante_id_localizacao_fkey")
 }
@@ -49,6 +55,8 @@ model Prestador {
   documentos Documento[]
   usuario    Usuario       @relation(fields: [id_usuario], references: [id])
   locais     Localizacao[] @relation("LocalizacaoToPrestador")
+  servico    Servico[]
+  pagamento  Pagamento[]
 }
 
 model Documento {
@@ -61,6 +69,106 @@ model Documento {
   prestador      Prestador     @relation(fields: [id_prestador], references: [id])
 
   @@index([id_prestador], map: "Documento_id_prestador_fkey")
+}
+
+model RecuperacaoSenha {
+  id        Int      @id @default(autoincrement())
+  usuarioId Int
+  codigo    String   @db.VarChar(6)
+  expira    DateTime
+  usado     Boolean  @default(false)
+  criadoEm  DateTime @default(now()) @map("criado_em")
+
+  usuario Usuario @relation(fields: [usuarioId], references: [id])
+
+  @@map("recuperacao_senha")
+}
+
+model Servico {
+  id               Int           @id @default(autoincrement())
+  id_contratante   Int
+  id_prestador     Int?
+  descricao        String
+  categoria        String?
+  local_entrega    String?
+  status           StatusServico @default(PENDENTE)
+  data_solicitacao DateTime      @default(now())
+  data_conclusao   DateTime?
+
+  contratante Contratante @relation(fields: [id_contratante], references: [id])
+  prestador   Prestador?  @relation(fields: [id_prestador], references: [id])
+  pagamentos  Pagamento[]
+
+  @@map("servico")
+}
+
+enum StatusServico {
+  PENDENTE
+  EM_ANDAMENTO
+  FINALIZADO
+  CANCELADO
+}
+
+model Pagamento {
+  id             Int             @id @default(autoincrement())
+  id_servico     Int
+  id_contratante Int
+  id_prestador   Int
+  valor          Decimal         @db.Decimal(10, 2)
+  metodo         MetodoPagamento @default(CARTEIRA_PAGBANK)
+  status         StatusPagamento @default(PENDENTE)
+  id_pagbank     String?
+  data_pagamento DateTime        @default(now())
+
+  servico     Servico     @relation(fields: [id_servico], references: [id])
+  contratante Contratante @relation(fields: [id_contratante], references: [id])
+  prestador   Prestador   @relation(fields: [id_prestador], references: [id])
+
+  @@map("pagamento")
+}
+
+enum MetodoPagamento {
+  CARTEIRA_PAGBANK
+  PIX
+  CARTAO
+}
+
+enum StatusPagamento {
+  PENDENTE
+  PAGO
+  FALHOU
+  CANCELADO
+}
+
+model Carteira {
+  id            Int      @id @default(autoincrement())
+  id_usuario    Int      @unique
+  chave_pagbank String
+  saldo         Decimal  @default(0.00) @db.Decimal(10, 2)
+  data_criacao  DateTime @default(now())
+
+  usuario    Usuario             @relation(fields: [id_usuario], references: [id])
+  transacoes TransacaoCarteira[]
+
+  @@map("carteira")
+}
+
+model TransacaoCarteira {
+  id             Int           @id @default(autoincrement())
+  id_carteira    Int
+  tipo           TipoTransacao
+  valor          Decimal       @db.Decimal(10, 2)
+  descricao      String?
+  data_transacao DateTime      @default(now())
+
+  carteira Carteira @relation(fields: [id_carteira], references: [id])
+
+  @@map("transacao_carteira")
+}
+
+enum TipoTransacao {
+  ENTRADA
+  SAIDA
 }
 
 enum TipoConta {

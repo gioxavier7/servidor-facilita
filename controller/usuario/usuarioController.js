@@ -220,65 +220,71 @@ const atualizarPerfil = async (req, res) => {
 // ================= SOLICITAR RECUPERAÇÃO DE SENHA =================
 const solicitarRecuperacaoSenha = async (req, res) => {
   try {
-    const { email } = req.body;
+    const { email } = req.body
 
     if (!email) 
-      return res.status(400).json({ error: 'E-mail é obrigatório' });
+      return res.status(400).json({ error: 'E-mail é obrigatório' })
 
-    // validação
+    // Só pode solicitar para si mesmo
     if (email !== req.usuario.email) {
-  return res.status(403).json({ error: 'Você só pode solicitar recuperação para o seu próprio e-mail.' })
-}
+      return res.status(403).json({ error: 'Você só pode solicitar recuperação para o seu próprio e-mail.' })
+    }
 
-    const usuario = await usuarioDAO.selectByEmail(email);
-    if (!usuario) 
-      return res.status(404).json({ error: 'Usuário não encontrado' });
+    const usuario = await usuarioDAO.selectByEmail(email)
+    if (!usuario) return res.status(404).json({ error: 'Usuário não encontrado' })
 
-    const token = jwt.sign(
-      { id_usuario: usuario.id },
-      process.env.JWT_SECRET,
-      { expiresIn: '15m' }
-    );
+    //código OTP de 5 dígitos
+    const codigo = Math.floor(10000 + Math.random() * 90000).toString()
+    const expira = new Date(Date.now() + 15 * 60 * 1000) // expira em 15 minutos
 
-    console.log("Token gerado (use este para testar no Postman):", token);
+    // salva no banco
+    await usuarioDAO.criarCodigo(usuario.id, codigo, expira)
 
-    const link = `${process.env.FRONTEND_URL}/redefinir-senha?token=${token}`;
+    // envia por e-mail
+    await enviarEmail(usuario.email, `Seu código de recuperação é: ${codigo}`)
 
-    enviarEmail(usuario.email, link).catch(console.error);
-
-    res.json({ message: 'Link de recuperação enviado por e-mail' });
+    res.json({ message: 'Código de recuperação enviado por e-mail' })
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Erro ao solicitar recuperação de senha' });
+    console.error(err)
+    res.status(500).json({ error: 'Erro ao solicitar recuperação de senha' })
   }
-};
+}
 
 // ================= REDEFINIR SENHA =================
 const redefinirSenha = async (req, res) => {
-  const { token, novaSenha } = req.body;
-
-  if (!novaSenha) 
-    return res.status(400).json({ error: 'A nova senha é obrigatória' });
-
   try {
-    const payload = jwt.verify(token, process.env.JWT_SECRET);
+    const { email, codigo, novaSenha } = req.body
 
-    // validação
-    if (payload.id_usuario !== req.usuario.id) {
-      return res.status(403).json({ error: 'Você não tem permissão para alterar a senha de outro usuário.' });
+    if (!novaSenha) 
+      return res.status(400).json({ error: 'A nova senha é obrigatória' })
+
+    const usuario = await usuarioDAO.selectByEmail(email)
+    if (!usuario) return res.status(404).json({ error: 'Usuário não encontrado' })
+
+    // Só pode redefinir a própria senha
+    if (email !== req.usuario.email) {
+      return res.status(403).json({ error: 'Você não tem permissão para alterar a senha de outro usuário.' })
     }
 
-    const senhaCriptografada = await bcrypt.hash(novaSenha, 10);
-    await usuarioDAO.updaterSenha(payload.id_usuario, senhaCriptografada);
+    // Verifica código OTP válido e não usado
+    const registro = await usuarioDAO.buscarCodigo(usuario.id, codigo)
+    if (!registro || registro.usado || registro.expira < new Date()) {
+      return res.status(400).json({ error: 'Código inválido ou expirado' })
+    }
 
-    console.log(`Senha atualizada para usuário ID ${payload.id_usuario}`); //debug
+    // Atualiza senha
+    const senhaCriptografada = await bcrypt.hash(novaSenha, 10)
+    await usuarioDAO.updaterSenha(usuario.id, senhaCriptografada)
 
-    res.json({ message: 'Senha atualizada com sucesso' });
+    // Marca código como usado
+    await usuarioDAO.marcarComoUsado(registro.id)
+
+    res.json({ message: 'Senha atualizada com sucesso' })
   } catch (err) {
-    console.error("Erro ao redefinir senha:", err.message);
-    res.status(400).json({ error: 'Token inválido ou expirado' });
+    console.error("Erro ao redefinir senha:", err.message)
+    res.status(500).json({ error: 'Erro ao redefinir senha' })
   }
-};
+}
 
 
 module.exports = {

@@ -271,6 +271,45 @@ const updaterSenha = async (usuarioId, novaSenhaHash) => {
   }
 };
 
+// ================= CRIAR CÓDIGO PARA RECUPERAÇAO =================
+async function criarCodigo(usuario_id, codigo, expira) {
+  return await prisma.recuperacaoSenha.create({
+    data: {
+      codigo,
+      expira,
+      usuario: {
+        connect: { id: usuario_id }
+      }
+    }
+  })
+}
+
+
+// ================= BUSCAR CODIGO VÁLIDO =================
+async function buscarCodigo(usuario_id, codigo) {
+  return await prisma.recuperacaoSenha.findFirst({
+    where: {
+      usuarioId: usuario_id, // <-- CORRIGIDO
+      codigo,
+      usado: false,
+      expira: {
+        gte: new Date()
+      }
+    },
+    orderBy: {
+      criadoEm: 'desc'
+    }
+  })
+}
+
+
+// ================= MARCAR COMO CÓDIGO USADO =================
+async function marcarComoUsado(id) {
+  return await prisma.recuperacaoSenha.update({
+    where: { id },
+    data: { usado: true }
+  })
+}
 
 module.exports = {
   insertUsuario,
@@ -281,5 +320,8 @@ module.exports = {
   selectByEmail,
   selectByTelefone,
   updatePerfil,
-  updaterSenha
+  updaterSenha,
+  criarCodigo,
+  buscarCodigo,
+  marcarComoUsado
 }
