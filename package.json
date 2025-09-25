@@ -11,6 +11,12 @@
     "twilio": "^5.9.0"
   },
   "devDependencies": {
+    "cross-env": "^10.0.0",
+    "nodemon": "^3.1.10",
     "prisma": "^6.16.2"
+  },
+  "scripts": {
+    "dev": "cross-env NODE_ENV=development nodemon app.js",
+    "start": "cross-env NODE_ENV=production node app.js"
   }
 }

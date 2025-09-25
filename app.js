@@ -8,9 +8,14 @@
 const express = require('express')
 const cors = require('cors')
 const bodyParser = require('body-parser')
-require('dotenv').config()
+const path = require('path')
 
-//import das routes
+// Carregar variáveis de ambiente dependendo do ambiente
+require('dotenv').config({
+  path: process.env.NODE_ENV === 'production' ? '.env.production' : '.env.development'
+})
+
+// import das routes
 const usuarioRoutes = require('./routes/usuarioRoutes')
 const contratanteRoutes = require('./routes/contratanteRoutes')
 const prestadorRoutes = require('./routes/prestadorRoutes')
@@ -18,21 +23,29 @@ const prestadorRoutes = require('./routes/prestadorRoutes')
 const app = express()
 app.use(bodyParser.json())
 
-//configuração de CORS
+// configuração de CORS (local + produção)
+const allowedOrigins = [
+  'http://localhost:5173',     // frontend local
+  process.env.FRONTEND_URL     // frontend em produção
+]
+
 app.use((req, res, next) => {
-    res.header('Access-Control-Allow-Origin', 'http://localhost:5173')
-    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS')
-    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization')
-  
-    if (req.method === 'OPTIONS') {
-      return res.sendStatus(200)  // resposta pro preflight
-    }
-  
-    next()
-  })
+  const origin = req.headers.origin
+  if (allowedOrigins.includes(origin)) {
+    res.header('Access-Control-Allow-Origin', origin)
+  }
 
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS')
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization')
 
-// ========== ROTAS =========
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(200) // resposta pro preflight
+  }
+
+  next()
+})
+
+// ========== ROTAS ==========
 
 // ROTAS DE USUÁRIO (auth + CRUD)
 app.use('/v1/facilita/usuario', usuarioRoutes)
@@ -45,4 +58,4 @@ app.use('/v1/facilita/prestador', prestadorRoutes)
 
 // ========== START DO SERVIDOR =========
 const PORT = process.env.PORT || 3000
-app.listen(PORT, () => console.log(`servidor aguardando novas requisições...`))
+app.listen(PORT, () => console.log(`Servidor rodando na porta ${PORT}...`))
