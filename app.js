@@ -68,7 +68,6 @@ app.use('/v1/facilita/servico', servicoRoutes)
 // ROTAS DE CATEGORIA
 app.use('/v1/facilita/categoria', categoriaRoutes)
 
-
 // ========== START DO SERVIDOR =========
 const PORT = process.env.PORT || 3000
 app.listen(PORT, () => console.log(`Servidor rodando na porta ${PORT}...`))
