@@ -66,7 +66,7 @@ const cadastrarUsuario = async (req, res) => {
 const login = async (req, res) => {
   try {
     const { login, senha } = req.body; // email ou telefone
-
+    console.log("Iniciando login, body recebido:", req.body);
     if (!login || !senha) {
       return res
         .status(400)
