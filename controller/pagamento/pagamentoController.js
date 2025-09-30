@@ -76,7 +76,7 @@ const criarPagamentoPagBank = async function(req, res){
       qr_codes: [
         { amount: { value: valor }, expiration_date: new Date(Date.now() + 24*60*60*1000).toISOString() }
       ],
-      notification_urls: ["https://unelicitable-angelica-fluxionally.ngrok-free.dev/v1/facilita/pagamento/webhook"]
+      notification_urls: ["https://servidor-facilita.onrender.com/v1/facilita/pagamento/webhook"]
     }
 
     // criar pedido na API PagBank

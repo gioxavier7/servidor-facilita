@@ -40,13 +40,15 @@ const selectByIdPagamento = async (id) => {
 const selectByIdPagBank = async function(id_pagbank){
   try {
     return await prisma.pagamento.findFirst({ 
-      where: { id_pagbank } 
+      where: { id_pagbank },
+      include: { prestador: true, servico: true, contratante: true } // inclui prestador
     })
   } catch (error) {
     console.error(error)
     return false
   }
 }
+
 
 const updateStatusPagamento = async function(id, status){
   try {
