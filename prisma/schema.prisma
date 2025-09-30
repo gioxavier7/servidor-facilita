@@ -42,6 +42,7 @@ model Localizacao {
 model Contratante {
   id             Int          @id @default(autoincrement())
   necessidade    Necessidade?
+  cpf            String?      @unique 
   id_usuario     Int          @unique
   id_localizacao Int
   localizacao    Localizacao  @relation(fields: [id_localizacao], references: [id])

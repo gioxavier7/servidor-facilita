@@ -19,13 +19,15 @@ const insertContratante = async (contratante) => {
       data: {
         id_usuario: contratante.id_usuario,
         id_localizacao: contratante.id_localizacao,
-        necessidade: contratante.necessidade
+        necessidade: contratante.necessidade,
+        cpf: contratante.cpf
       },
       include: {
         usuario: true,
         localizacao: true
       }
     })
+
 
     return novoContratante
   } catch (error) {
@@ -41,17 +43,18 @@ const insertContratante = async (contratante) => {
  */
 const updateContratante = async function (contratante) {
   try {
-    const atualizado = await prisma.contratante.update({
-      where: { id: contratante.id },
-      data: {
-        id_localizacao: contratante.id_localizacao,
-        necessidade: contratante.necessidade
-      },
-      include: {
-        usuario: true,
-        localizacao: true
-      }
-    })
+      const atualizado = await prisma.contratante.update({
+        where: { id: contratante.id },
+        data: {
+          id_localizacao: contratante.id_localizacao,
+          necessidade: contratante.necessidade,
+          cpf: contratante.cpf
+        },
+        include: {
+          usuario: true,
+          localizacao: true
+        }
+      })
 
     return atualizado
   } catch (error) {

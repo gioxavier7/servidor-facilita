@@ -10,19 +10,18 @@ const contratanteDAO = require('../../model/dao/contratante')
 //========== CRIAR CONTRATANTE ==========
 const cadastrarContratante = async function(req, res){
     try {
-        const {id_localizacao, necessidade} = req.body
+        const {id_localizacao, necessidade, cpf} = req.body
         const id_usuario = req.usuario.id //extraído do jwt
 
-        //validacao básica
-        if(!id_localizacao || !necessidade){
+        if(!id_localizacao || !necessidade || !cpf){
             return res.status(400).json({message: 'Dados inválidos ou insuficientes.'})
         }
-
 
         const novoContratante = await contratanteDAO.insertContratante({
             id_usuario,
             id_localizacao,
-            necessidade
+            necessidade,
+            cpf
         })
 
         if (novoContratante) {
@@ -36,6 +35,7 @@ const cadastrarContratante = async function(req, res){
         return res.status(500).json({ message: 'Erro interno no servidor.' })
     }
 }
+
 
 //========== LISTAR TODOS ==========
 const listarContratantes = async function(req, res){
@@ -73,18 +73,18 @@ const buscarContratante = async function(req, res){
 //========== ATUALIZAR CONTRATANTE ==========
 const atualizarContratante = async function(req, res){
     try {
-        const { id_localizacao, necessidade} = req.body
+        const { id_localizacao, necessidade, cpf } = req.body
         const {id} = req.params
 
-        //validacao
-        if(!id_localizacao || !necessidade){
+        if(!id_localizacao || !necessidade || !cpf){
             return res.status(400).json({message: 'Dados inválidos ou insuficientes.'})
         }
 
         const atualizado = await contratanteDAO.updateContratante({
             id: Number(id),
             id_localizacao,
-            necessidade
+            necessidade,
+            cpf
         })
 
         if(atualizado){
@@ -100,6 +100,7 @@ const atualizarContratante = async function(req, res){
         return res.status(500).json({message: 'Erro interno no servidor.'})
     }
 }
+
 
 //========== DELETAR CONTRATANTE ==========
 const deletarContratante = async function(req, res){

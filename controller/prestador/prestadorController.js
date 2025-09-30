@@ -10,28 +10,39 @@ const prestadorDAO = require('../../model/dao/prestador')
 // ================= CADASTRAR PRESTADOR =================
 const cadastrarPrestador = async (req, res) => {
   try {
-    const id_usuario = req.usuario.id // do JWT
-    const { locais, documentos } = req.body
+    const id_usuario = req.usuario.id; // do JWT
+    const { locais, documentos } = req.body;
 
-    // validação básica
+    // validação básica de locais
     if (!locais || !Array.isArray(locais) || locais.length === 0) {
-      return res.status(400).json({ message: 'É necessário informar pelo menos um local.' })
+      return res.status(400).json({ message: 'É necessário informar pelo menos um local.' });
+    }
+
+    // validação CPF obrigatório dentro dos documentos
+    const cpfDoc = (documentos || []).find(doc => doc.tipo_documento === 'CPF');
+    if (!cpfDoc) {
+      return res.status(400).json({ message: 'Documento CPF obrigatório.' });
+    }
+
+    const regexCPF = /^\d{11}$/; // apenas números
+    if (!regexCPF.test(cpfDoc.valor)) {
+      return res.status(400).json({ message: 'CPF inválido, use 11 dígitos numéricos.' });
     }
 
     const novoPrestador = await prestadorDAO.insertPrestador({
       id_usuario,
       locais,
       documentos: documentos || []
-    })
+    });
 
     return res.status(201).json({
       message: 'Prestador criado com sucesso!',
       prestador: novoPrestador
-    })
+    });
 
   } catch (error) {
-    console.error('Erro ao cadastrar prestador:', error)
-    return res.status(500).json({ message: error.message || 'Erro interno no servidor.' })
+    console.error('Erro ao cadastrar prestador:', error);
+    return res.status(500).json({ message: error.message || 'Erro interno no servidor.' });
   }
 }
 
