@@ -8,47 +8,29 @@ datasource db {
 }
 
 model Usuario {
-  id          Int          @id @default(autoincrement())
-  nome        String
-  senha_hash  String
-  email       String       @unique
-  telefone    String       @unique
-  tipo_conta  TipoConta?
-  criado_em   DateTime     @default(now())
-  contratante Contratante?
-  prestador   Prestador?
-
-  //relação para recuperação de senha
-  recuperacoes RecuperacaoSenha[]
+  id           Int                @id @default(autoincrement())
+  nome         String
+  senha_hash   String
+  email        String             @unique
+  telefone     String             @unique
+  tipo_conta   TipoConta?
+  criado_em    DateTime           @default(now())
+  contratante  Contratante?
+  prestador    Prestador?
   carteira     Carteira?
-}
-
-model Localizacao {
-  id           Int           @id @default(autoincrement())
-  logradouro   String
-  numero       String?
-  bairro       String
-  cidade       String
-  cep          String?
-  latitude     Decimal
-  longitude    Decimal
-  contratantes Contratante[]
-  prestadores  Prestador[]   @relation("LocalizacaoToPrestador")
-  servicos  Servico[]
-
-  @@map("localizacao")
+  recuperacoes RecuperacaoSenha[]
 }
 
 model Contratante {
   id             Int          @id @default(autoincrement())
   necessidade    Necessidade?
-  cpf            String?      @unique 
   id_usuario     Int          @unique
   id_localizacao Int
+  cpf            String?      @unique
   localizacao    Localizacao  @relation(fields: [id_localizacao], references: [id])
   usuario        Usuario      @relation(fields: [id_usuario], references: [id])
-  servico        Servico[]
   pagamento      Pagamento[]
+  servico        Servico[]
 
   @@index([id_localizacao], map: "Contratante_id_localizacao_fkey")
 }
@@ -58,9 +40,9 @@ model Prestador {
   id_usuario Int           @unique
   documentos Documento[]
   usuario    Usuario       @relation(fields: [id_usuario], references: [id])
-  locais     Localizacao[] @relation("LocalizacaoToPrestador")
-  servico    Servico[]
   pagamento  Pagamento[]
+  servico    Servico[]
+  locais     Localizacao[] @relation("LocalizacaoToPrestador")
 }
 
 model Documento {
@@ -82,9 +64,9 @@ model RecuperacaoSenha {
   expira    DateTime
   usado     Boolean  @default(false)
   criadoEm  DateTime @default(now()) @map("criado_em")
+  usuario   Usuario  @relation(fields: [usuarioId], references: [id])
 
-  usuario Usuario @relation(fields: [usuarioId], references: [id])
-
+  @@index([usuarioId], map: "recuperacao_senha_usuarioId_fkey")
   @@map("recuperacao_senha")
 }
 
@@ -101,27 +83,22 @@ model Servico {
   id_contratante   Int
   id_prestador     Int?
   id_categoria     Int?
-  id_localizacao   Int?          // 🔹 novo relacionamento
   descricao        String
   status           StatusServico @default(PENDENTE)
   data_solicitacao DateTime      @default(now())
   data_conclusao   DateTime?
+  id_localizacao   Int?
+  pagamentos       Pagamento[]
+  categoria        Categoria?    @relation(fields: [id_categoria], references: [id])
+  contratante      Contratante   @relation(fields: [id_contratante], references: [id])
+  localizacao      Localizacao?  @relation(fields: [id_localizacao], references: [id])
+  prestador        Prestador?    @relation(fields: [id_prestador], references: [id])
 
-  contratante Contratante @relation(fields: [id_contratante], references: [id])
-  prestador   Prestador?  @relation(fields: [id_prestador], references: [id])
-  categoria   Categoria?  @relation(fields: [id_categoria], references: [id])
-  localizacao Localizacao? @relation(fields: [id_localizacao], references: [id])
-  pagamentos  Pagamento[]
-
+  @@index([id_categoria], map: "servico_id_categoria_fkey")
+  @@index([id_contratante], map: "servico_id_contratante_fkey")
+  @@index([id_localizacao], map: "servico_id_localizacao_fkey")
+  @@index([id_prestador], map: "servico_id_prestador_fkey")
   @@map("servico")
-}
-
-
-enum StatusServico {
-  PENDENTE
-  EM_ANDAMENTO
-  FINALIZADO
-  CANCELADO
 }
 
 model Pagamento {
@@ -134,12 +111,60 @@ model Pagamento {
   status         StatusPagamento @default(PENDENTE)
   id_pagbank     String?
   data_pagamento DateTime        @default(now())
+  contratante    Contratante     @relation(fields: [id_contratante], references: [id])
+  prestador      Prestador       @relation(fields: [id_prestador], references: [id])
+  servico        Servico         @relation(fields: [id_servico], references: [id])
 
-  servico     Servico     @relation(fields: [id_servico], references: [id])
-  contratante Contratante @relation(fields: [id_contratante], references: [id])
-  prestador   Prestador   @relation(fields: [id_prestador], references: [id])
-
+  @@index([id_contratante], map: "pagamento_id_contratante_fkey")
+  @@index([id_prestador], map: "pagamento_id_prestador_fkey")
+  @@index([id_servico], map: "pagamento_id_servico_fkey")
   @@map("pagamento")
+}
+
+model Carteira {
+  id            Int                 @id @default(autoincrement())
+  id_usuario    Int                 @unique
+  chave_pagbank String
+  saldo         Decimal             @default(0.00) @db.Decimal(10, 2)
+  data_criacao  DateTime            @default(now())
+  usuario       Usuario             @relation(fields: [id_usuario], references: [id])
+  transacoes    TransacaoCarteira[]
+
+  @@map("carteira")
+}
+
+model TransacaoCarteira {
+  id             Int           @id @default(autoincrement())
+  id_carteira    Int
+  tipo           TipoTransacao
+  valor          Decimal       @db.Decimal(10, 2)
+  descricao      String?
+  data_transacao DateTime      @default(now())
+  carteira       Carteira      @relation(fields: [id_carteira], references: [id])
+
+  @@index([id_carteira], map: "transacao_carteira_id_carteira_fkey")
+  @@map("transacao_carteira")
+}
+
+model Localizacao {
+  id           Int           @id @default(autoincrement())
+  logradouro   String
+  numero       String?
+  bairro       String
+  cidade       String
+  cep          String?
+  latitude     Decimal
+  longitude    Decimal
+  contratantes Contratante[]
+  servicos     Servico[]
+  prestadores  Prestador[]   @relation("LocalizacaoToPrestador")
+}
+
+enum StatusServico {
+  PENDENTE
+  EM_ANDAMENTO
+  FINALIZADO
+  CANCELADO
 }
 
 enum MetodoPagamento {
@@ -153,32 +178,6 @@ enum StatusPagamento {
   PAGO
   FALHOU
   CANCELADO
-}
-
-model Carteira {
-  id            Int      @id @default(autoincrement())
-  id_usuario    Int      @unique
-  chave_pagbank String
-  saldo         Decimal  @default(0.00) @db.Decimal(10, 2)
-  data_criacao  DateTime @default(now())
-
-  usuario    Usuario             @relation(fields: [id_usuario], references: [id])
-  transacoes TransacaoCarteira[]
-
-  @@map("carteira")
-}
-
-model TransacaoCarteira {
-  id             Int           @id @default(autoincrement())
-  id_carteira    Int
-  tipo           TipoTransacao
-  valor          Decimal       @db.Decimal(10, 2)
-  descricao      String?
-  data_transacao DateTime      @default(now())
-
-  carteira Carteira @relation(fields: [id_carteira], references: [id])
-
-  @@map("transacao_carteira")
 }
 
 enum TipoTransacao {
