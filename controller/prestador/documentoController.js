@@ -17,6 +17,14 @@ const cadastrarDocumento = async function(req, res) {
       return res.status(400).json({ message: 'Dados insuficientes ou inválidos.' })
     }
 
+    // validação de CPF se o tipo_documento for CPF
+    if (tipo_documento === 'CPF') {
+      const regexCPF = /^\d{11}$/;
+      if (!regexCPF.test(valor)) {
+        return res.status(400).json({ message: 'CPF inválido, use 11 dígitos numéricos.' })
+      }
+    }
+
     const novoDocumento = await documentoDAO.insertDocumento({
       tipo_documento,
       valor,
@@ -35,6 +43,7 @@ const cadastrarDocumento = async function(req, res) {
     return res.status(500).json({ message: 'Erro interno no servidor.' })
   }
 }
+
 
 //========== LISTAR TODOS DOCUMENTOS ==========
 const listarDocumentos = async function(req, res) {

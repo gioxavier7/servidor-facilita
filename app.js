@@ -22,6 +22,10 @@ const prestadorRoutes = require('./routes/prestadorRoutes')
 const localizacaoRoutes = require('./routes/localizacaoRoutes')
 const servicoRoutes = require('./routes/servicoRoutes')
 const categoriaRoutes = require('./routes/categoriaRoutes')
+const pagamentoRoutes = require('./routes/pagamentoRoutes')
+const carteiraRoutes = require('./routes/carteiraRoutes')
+const transacaoCarteiraRoutes = require('./routes/transacaoCarteiraRoutes')
+const pagbankWebhookRoutes = require('./routes/pagbankWebhookRoutes')
 
 const app = express()
 app.use(bodyParser.json())
@@ -67,6 +71,18 @@ app.use('/v1/facilita/servico', servicoRoutes)
 
 // ROTAS DE CATEGORIA
 app.use('/v1/facilita/categoria', categoriaRoutes)
+
+// ROTAS DE PAGAMENTO
+app.use('/v1/facilita/pagamento', pagamentoRoutes)
+
+// ROTAS DE CARTEIRA
+app.use('/v1/facilita/carteira', carteiraRoutes)
+
+// ROTAS DE TRANSAÇÃO-CARTEIRA
+app.use('/v1/facilita/transacao-carteira', transacaoCarteiraRoutes)
+
+// ROTAS DE WEBHOOK PAGBANK
+app.use('/v1/facilita/pagamento/webhook', pagbankWebhookRoutes)
 
 // ========== START DO SERVIDOR =========
 const PORT = process.env.PORT || 3000

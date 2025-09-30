@@ -11,6 +11,17 @@ const prisma = new PrismaClient()
 // ================= INSERIR PRESTADOR =================
 const insertPrestador = async (prestador) => {
   try {
+    // validação de CPF obrigatório
+    const cpfDoc = (prestador.documentos || []).find(doc => doc.tipo_documento === 'CPF');
+    if (!cpfDoc) {
+      throw new Error('Documento CPF obrigatório.');
+    }
+
+    const regexCPF = /^\d{11}$/;
+    if (!regexCPF.test(cpfDoc.valor)) {
+      throw new Error('CPF inválido, use 11 dígitos numéricos.');
+    }
+
     const novoPrestador = await prisma.prestador.create({
       data: {
         id_usuario: prestador.id_usuario,
@@ -31,13 +42,14 @@ const insertPrestador = async (prestador) => {
         locais: true,
         documentos: true
       }
-    })
-    return novoPrestador
+    });
+
+    return novoPrestador;
   } catch (error) {
-    console.error("Erro ao inserir prestador:", error)
-    throw new Error('Erro interno ao criar prestador.')
+    console.error("Erro ao inserir prestador:", error);
+    throw new Error(error.message || 'Erro interno ao criar prestador.');
   }
-}
+};
 
 // ================= LISTAR TODOS PRESTADORES =================
 const selectAllPrestadores = async () => {

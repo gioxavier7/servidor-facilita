@@ -145,10 +145,33 @@ const selectByIdServico = async (id) => {
   }
 }
 
+/**
+ * retorna um serviço pelo ID incluindo apenas contratante e prestador
+ * @param {number} id
+ * @returns {Object|false} - serviço ou false
+ */
+const selectServicoById = async (id) => {
+  try {
+    const servico = await prisma.servico.findUnique({
+      where: { id },
+      include: {
+        contratante: true,
+        prestador: true
+      }
+    });
+
+    return servico || false;
+  } catch (error) {
+    console.error("Erro ao buscar serviço por ID (PagBank):", error);
+    return false;
+  }
+}
+
 module.exports = {
   insertServico,
   selectAllServico,
   selectByIdServico,
   updateServico,
-  deleteServico
-}
+  deleteServico,
+  selectServicoById 
+};
