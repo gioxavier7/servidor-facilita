@@ -231,6 +231,10 @@ const atualizarPerfil = async (req, res) => {
   }
 };
 
+const bcrypt = require("bcrypt");
+const usuarioDAO = require("../../model/dao/usuario");
+const enviarEmail = require("../../utils/email");
+
 // ================= SOLICITAR RECUPERAÇÃO DE SENHA =================
 const solicitarRecuperacaoSenha = async (req, res) => {
   try {
@@ -238,28 +242,18 @@ const solicitarRecuperacaoSenha = async (req, res) => {
 
     if (!email) return res.status(400).json({ error: "E-mail é obrigatório" });
 
-    // Só pode solicitar para si mesmo
-    if (email !== req.usuario.email) {
-      return res
-        .status(403)
-        .json({
-          error:
-            "Você só pode solicitar recuperação para o seu próprio e-mail.",
-        });
-    }
-
     const usuario = await usuarioDAO.selectByEmail(email);
     if (!usuario)
       return res.status(404).json({ error: "Usuário não encontrado" });
 
-    //código OTP de 5 dígitos
+    // Código OTP de 5 dígitos
     const codigo = Math.floor(10000 + Math.random() * 90000).toString();
     const expira = new Date(Date.now() + 15 * 60 * 1000); // expira em 15 minutos
 
-    // salva no banco
+    // Salva no banco
     await usuarioDAO.criarCodigo(usuario.id, codigo, expira);
 
-    // envia por e-mail
+    // Envia por e-mail
     await enviarEmail(usuario.email, `Seu código de recuperação é: ${codigo}`);
 
     res.json({ message: "Código de recuperação enviado por e-mail" });
@@ -274,22 +268,13 @@ const redefinirSenha = async (req, res) => {
   try {
     const { email, codigo, novaSenha } = req.body;
 
-    if (!novaSenha)
-      return res.status(400).json({ error: "A nova senha é obrigatória" });
+    if (!email || !codigo || !novaSenha) {
+      return res.status(400).json({ error: "Email, código e nova senha são obrigatórios" });
+    }
 
     const usuario = await usuarioDAO.selectByEmail(email);
     if (!usuario)
       return res.status(404).json({ error: "Usuário não encontrado" });
-
-    // Só pode redefinir a própria senha
-    if (email !== req.usuario.email) {
-      return res
-        .status(403)
-        .json({
-          error:
-            "Você não tem permissão para alterar a senha de outro usuário.",
-        });
-    }
 
     // Verifica código OTP válido e não usado
     const registro = await usuarioDAO.buscarCodigo(usuario.id, codigo);
