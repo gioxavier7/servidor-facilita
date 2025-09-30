@@ -15,19 +15,10 @@ require('dotenv').config({
   path: process.env.NODE_ENV === 'production' ? '.env.production' : '.env.development'
 })
 
-// import das routes
-const usuarioRoutes = require('./routes/usuarioRoutes')
-const contratanteRoutes = require('./routes/contratanteRoutes')
-const prestadorRoutes = require('./routes/prestadorRoutes')
-const localizacaoRoutes = require('./routes/localizacaoRoutes')
-const servicoRoutes = require('./routes/servicoRoutes')
-const categoriaRoutes = require('./routes/categoriaRoutes')
-const pagamentoRoutes = require('./routes/pagamentoRoutes')
-const carteiraRoutes = require('./routes/carteiraRoutes')
-const transacaoCarteiraRoutes = require('./routes/transacaoCarteiraRoutes')
-const pagbankWebhookRoutes = require('./routes/pagbankWebhookRoutes')
-
+// ========== CONFIGURAÇÃO DO SERVIDOR ==========
 const app = express()
+const PORT = process.env.PORT || 3000  // ✅ MOVER PARA CIMA
+
 app.use(bodyParser.json())
 
 // configuração de CORS (local + produção)
@@ -51,6 +42,27 @@ app.use((req, res, next) => {
 
   next()
 })
+
+// ========== SWAGGER DOCUMENTATION ==========
+try {
+  const setupSwagger = require('./swagger');
+  setupSwagger(app);
+  console.log('📚 Swagger documentation available at: http://localhost:' + PORT + '/api-docs');
+} catch (error) {
+  console.log('⚠️  Swagger documentation not loaded:', error.message);
+}
+
+// ========== IMPORTAÇÃO DAS ROTAS ==========
+const usuarioRoutes = require('./routes/usuarioRoutes')
+const contratanteRoutes = require('./routes/contratanteRoutes')
+const prestadorRoutes = require('./routes/prestadorRoutes')
+const localizacaoRoutes = require('./routes/localizacaoRoutes')
+const servicoRoutes = require('./routes/servicoRoutes')
+const categoriaRoutes = require('./routes/categoriaRoutes')
+const pagamentoRoutes = require('./routes/pagamentoRoutes')
+const carteiraRoutes = require('./routes/carteiraRoutes')
+const transacaoCarteiraRoutes = require('./routes/transacaoCarteiraRoutes')
+const pagbankWebhookRoutes = require('./routes/pagbankWebhookRoutes')
 
 // ========== ROTAS ==========
 
@@ -85,5 +97,7 @@ app.use('/v1/facilita/transacao-carteira', transacaoCarteiraRoutes)
 app.use('/v1/facilita/pagamento/webhook', pagbankWebhookRoutes)
 
 // ========== START DO SERVIDOR =========
-const PORT = process.env.PORT || 3000
-app.listen(PORT, () => console.log(`Servidor rodando na porta ${PORT}...`))
+app.listen(PORT, () => {
+  console.log(`🚀 Servidor rodando na porta ${PORT}...`)
+  console.log(`📚 Documentação Swagger: http://localhost:${PORT}/api-docs`)
+})
