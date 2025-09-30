@@ -231,10 +231,6 @@ const atualizarPerfil = async (req, res) => {
   }
 };
 
-const bcrypt = require("bcrypt");
-const usuarioDAO = require("../../model/dao/usuario");
-const enviarEmail = require("../../utils/email");
-
 // ================= SOLICITAR RECUPERAÇÃO DE SENHA =================
 const solicitarRecuperacaoSenha = async (req, res) => {
   try {
