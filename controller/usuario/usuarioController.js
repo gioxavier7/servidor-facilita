@@ -393,23 +393,32 @@ const solicitarRecuperacaoSenha = async (req, res) => {
 
     const usuario = await usuarioDAO.selectByEmail(email).catch(() => null);
 
-    //responde 200 para não revelar se o email existe
+    // Responde 200 para não revelar se o email existe
     if (usuario) {
       const codigo = Math.floor(10000 + Math.random() * 90000).toString();
       const expira = new Date(Date.now() + 15 * 60 * 1000); // 15 min
+      
       await usuarioDAO.criarCodigo(usuario.id, codigo, expira);
 
-      // Envia email (texto + HTML)
-      await enviarEmail(email, 'Seu código de recuperação', {
-        text: `Seu código de recuperação é: ${codigo} (válido por 15 minutos).`,
+      // Envia email usando Mailgun (texto + HTML)
+      await enviarEmail(email, 'Código de Recuperação - Facilita', {
+        text: `Seu código de recuperação é: ${codigo} (válido por 15 minutos).\n\nSe você não solicitou esta recuperação, ignore este e-mail.`,
         html: buildOtpHtml(codigo),
       });
+
+      console.log(`📧 Código de recuperação gerado para: ${email} - Código: ${codigo}`);
     }
 
-    return res.json({ message: "Se este e-mail estiver cadastrado, você receberá um código em instantes." });
+    return res.json({ 
+      message: "Se este e-mail estiver cadastrado, você receberá um código em instantes." 
+    });
+    
   } catch (err) {
-    console.error(err);
-    return res.status(500).json({ error: "Erro ao solicitar recuperação de senha" });
+    console.error("❌ Erro ao solicitar recuperação de senha:", err);
+    return res.status(500).json({ 
+      error: "Erro ao solicitar recuperação de senha",
+      details: process.env.NODE_ENV === 'development' ? err.message : undefined
+    });
   }
 };
 
@@ -418,29 +427,57 @@ const redefinirSenha = async (req, res) => {
   try {
     const { email, codigo, novaSenha } = req.body;
     if (!email || !codigo || !novaSenha) {
-      return res.status(400).json({ error: "Email, código e nova senha são obrigatórios" });
+      return res.status(400).json({ 
+        error: "Email, código e nova senha são obrigatórios" 
+      });
+    }
+
+    // Validações de senha (adicione conforme suas regras)
+    if (novaSenha.length < 6) {
+      return res.status(400).json({ 
+        error: "A senha deve ter pelo menos 8 caracteres" 
+      });
     }
 
     const usuario = await usuarioDAO.selectByEmail(email);
-    if (!usuario) return res.status(400).json({ error: "Código inválido ou expirado" });
-
-    const registro = await usuarioDAO.buscarCodigo(usuario.id, codigo);
-    // Garanta que 'registro.expira' é Date. Se vier string, faça: new Date(registro.expira)
-    const agora = new Date();
-    if (!registro || registro.usado || new Date(registro.expira) < agora) {
-      return res.status(400).json({ error: "Código inválido ou expirado" });
+    if (!usuario) {
+      return res.status(400).json({ 
+        error: "Código inválido ou expirado" 
+      });
     }
 
+    const registro = await usuarioDAO.buscarCodigo(usuario.id, codigo);
+    const agora = new Date();
+    
+    // Garante que 'registro.expira' é tratado como Date
+    if (!registro || registro.usado || new Date(registro.expira) < agora) {
+      return res.status(400).json({ 
+        error: "Código inválido ou expirado" 
+      });
+    }
+
+    // Criptografa a nova senha
     const senhaCriptografada = await bcrypt.hash(novaSenha, 10);
-    await usuarioDAO.updaterSenha(usuario.id, senhaCriptografada); // <-- confira o nome no DAO
+    
+    // Atualiza a senha e marca o código como usado
+    await usuarioDAO.updaterSenha(usuario.id, senhaCriptografada);
     await usuarioDAO.marcarComoUsado(registro.id);
 
-    return res.json({ message: "Senha atualizada com sucesso" });
+    console.log(`✅ Senha redefinida com sucesso para: ${email}`);
+
+    return res.json({ 
+      message: "Senha atualizada com sucesso" 
+    });
+    
   } catch (err) {
-    console.error("Erro ao redefinir senha:", err);
-    return res.status(500).json({ error: "Erro ao redefinir senha" });
+    console.error("❌ Erro ao redefinir senha:", err);
+    return res.status(500).json({ 
+      error: "Erro ao redefinir senha",
+      details: process.env.NODE_ENV === 'development' ? err.message : undefined
+    });
   }
 };
+
 module.exports = {
   cadastrarUsuario,
   login,
