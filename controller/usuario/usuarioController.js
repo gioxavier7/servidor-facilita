@@ -10,7 +10,7 @@ const usuarioDAO = require("../../model/dao/usuario");
 const jwt = require("jsonwebtoken");
 const bcrypt = require("bcrypt");
 require("dotenv").config();
-const enviarEmail = require("../../utils/email");
+const { enviarEmail, buildOtpHtml } = require("../../utils/email");
 
 // ================= CADASTRAR USUARIO =================
 const cadastrarUsuario = async (req, res) => {
@@ -389,27 +389,27 @@ const atualizarPerfil = async (req, res) => {
 const solicitarRecuperacaoSenha = async (req, res) => {
   try {
     const { email } = req.body;
-
     if (!email) return res.status(400).json({ error: "E-mail é obrigatório" });
 
-    const usuario = await usuarioDAO.selectByEmail(email);
-    if (!usuario)
-      return res.status(404).json({ error: "Usuário não encontrado" });
+    const usuario = await usuarioDAO.selectByEmail(email).catch(() => null);
 
-    // Código OTP de 5 dígitos
-    const codigo = Math.floor(10000 + Math.random() * 90000).toString();
-    const expira = new Date(Date.now() + 15 * 60 * 1000); // expira em 15 minutos
+    //responde 200 para não revelar se o email existe
+    if (usuario) {
+      const codigo = Math.floor(10000 + Math.random() * 90000).toString();
+      const expira = new Date(Date.now() + 15 * 60 * 1000); // 15 min
+      await usuarioDAO.criarCodigo(usuario.id, codigo, expira);
 
-    // Salva no banco
-    await usuarioDAO.criarCodigo(usuario.id, codigo, expira);
+      // Envia email (texto + HTML)
+      await enviarEmail(email, 'Seu código de recuperação', {
+        text: `Seu código de recuperação é: ${codigo} (válido por 15 minutos).`,
+        html: buildOtpHtml(codigo),
+      });
+    }
 
-    // Envia por e-mail
-    await enviarEmail(usuario.email, `Seu código de recuperação é: ${codigo}`);
-
-    res.json({ message: "Código de recuperação enviado por e-mail" });
+    return res.json({ message: "Se este e-mail estiver cadastrado, você receberá um código em instantes." });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "Erro ao solicitar recuperação de senha" });
+    return res.status(500).json({ error: "Erro ao solicitar recuperação de senha" });
   }
 };
 
@@ -417,35 +417,30 @@ const solicitarRecuperacaoSenha = async (req, res) => {
 const redefinirSenha = async (req, res) => {
   try {
     const { email, codigo, novaSenha } = req.body;
-
     if (!email || !codigo || !novaSenha) {
       return res.status(400).json({ error: "Email, código e nova senha são obrigatórios" });
     }
 
     const usuario = await usuarioDAO.selectByEmail(email);
-    if (!usuario)
-      return res.status(404).json({ error: "Usuário não encontrado" });
+    if (!usuario) return res.status(400).json({ error: "Código inválido ou expirado" });
 
-    // Verifica código OTP válido e não usado
     const registro = await usuarioDAO.buscarCodigo(usuario.id, codigo);
-    if (!registro || registro.usado || registro.expira < new Date()) {
+    // Garanta que 'registro.expira' é Date. Se vier string, faça: new Date(registro.expira)
+    const agora = new Date();
+    if (!registro || registro.usado || new Date(registro.expira) < agora) {
       return res.status(400).json({ error: "Código inválido ou expirado" });
     }
 
-    // Atualiza senha
     const senhaCriptografada = await bcrypt.hash(novaSenha, 10);
-    await usuarioDAO.updaterSenha(usuario.id, senhaCriptografada);
-
-    // Marca código como usado
+    await usuarioDAO.updaterSenha(usuario.id, senhaCriptografada); // <-- confira o nome no DAO
     await usuarioDAO.marcarComoUsado(registro.id);
 
-    res.json({ message: "Senha atualizada com sucesso" });
+    return res.json({ message: "Senha atualizada com sucesso" });
   } catch (err) {
-    console.error("Erro ao redefinir senha:", err.message);
-    res.status(500).json({ error: "Erro ao redefinir senha" });
+    console.error("Erro ao redefinir senha:", err);
+    return res.status(500).json({ error: "Erro ao redefinir senha" });
   }
 };
-
 module.exports = {
   cadastrarUsuario,
   login,
