@@ -13,28 +13,57 @@ const prisma = new PrismaClient()
  * @param {Object} contratante - {id_usuario, id_localizacao, necessidade}
  * @returns {Object|false} - contratante criado ou false em caso de erro
  */
+// ================= INSERIR CONTRATANTE =================
 const insertContratante = async (contratante) => {
   try {
-    const novoContratante = await prisma.contratante.create({
-      data: {
-        id_usuario: contratante.id_usuario,
-        id_localizacao: contratante.id_localizacao,
-        necessidade: contratante.necessidade,
-        cpf: contratante.cpf
-      },
-      include: {
-        usuario: true,
-        localizacao: true
+    const result = await prisma.$transaction(async (prisma) => {
+      //verifica se o usuário existe e não possui outro tipo de conta
+      const usuarioExistente = await prisma.usuario.findUnique({
+        where: { id: contratante.id_usuario }
+      });
+
+      if (!usuarioExistente) {
+        throw new Error('Usuário não encontrado.');
       }
-    })
 
+      if (usuarioExistente.tipo_conta && usuarioExistente.tipo_conta !== 'CONTRATANTE') {
+        throw new Error(`Este usuário já possui perfil de ${usuarioExistente.tipo_conta}.`);
+      }
 
-    return novoContratante
+      //atualiza o tipo_conta do usuário primeiro
+      await prisma.usuario.update({
+        where: { id: contratante.id_usuario },
+        data: { tipo_conta: 'CONTRATANTE' }
+      });
+
+      //cria contratante depois da atualização
+      const novoContratante = await prisma.contratante.create({
+        data: {
+          id_usuario: contratante.id_usuario,
+          id_localizacao: contratante.id_localizacao,
+          necessidade: contratante.necessidade,
+          cpf: contratante.cpf
+        },
+        include: {
+          usuario: true,
+          localizacao: true
+        }
+      });
+
+      return novoContratante;
+    });
+
+    return result;
   } catch (error) {
-    console.error("Erro ao inserir contratante:", error)
-    return false
+    console.error("Erro ao inserir contratante:", error);
+    
+    if (error.code === 'P2002') {
+      throw new Error('Já existe um perfil de contratante para este usuário.');
+    }
+    
+    throw new Error(error.message || 'Erro interno ao criar contratante.');
   }
-}
+};
 
 /**
  * atualiza um contratante existente

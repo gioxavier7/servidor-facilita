@@ -6,6 +6,8 @@
  */
 
 const prestadorDAO = require('../../model/dao/prestador')
+const usuarioDAO = require('../../model/dao/usuario')
+const jwt = require('jsonwebtoken');
 
 // ================= CADASTRAR PRESTADOR =================
 const cadastrarPrestador = async (req, res) => {
@@ -35,16 +37,40 @@ const cadastrarPrestador = async (req, res) => {
       documentos: documentos || []
     });
 
+    //bscar usuário atualizado com o tipo_conta correto
+    const usuarioAtualizado = await usuarioDAO.selectByIdUsuario(id_usuario);
+
+    //gerar novo token com tipo_conta atualizado
+    const token = jwt.sign(
+      { 
+        id: usuarioAtualizado.id, 
+        tipo_conta: usuarioAtualizado.tipo_conta, 
+        email: usuarioAtualizado.email 
+      },
+      process.env.JWT_SECRET,
+      { expiresIn: "8h" }
+    );
+
     return res.status(201).json({
       message: 'Prestador criado com sucesso!',
-      prestador: novoPrestador
+      token,
+      prestador: novoPrestador,
+      usuario: usuarioAtualizado
     });
 
   } catch (error) {
     console.error('Erro ao cadastrar prestador:', error);
+    
+    if (error.message.includes('já existe') || 
+        error.message.includes('já possui') ||
+        error.message.includes('não encontrado') ||
+        error.message.includes('CPF')) {
+      return res.status(400).json({ message: error.message });
+    }
+    
     return res.status(500).json({ message: error.message || 'Erro interno no servidor.' });
   }
-}
+};
 
 // ================= LISTAR TODOS OS PRESTADORES =================
 const listarPrestadores = async (req, res) => {
