@@ -11,6 +11,7 @@ const jwt = require("jsonwebtoken");
 const bcrypt = require("bcrypt");
 require("dotenv").config();
 const { enviarEmail, buildOtpHtml } = require("../../utils/email");
+const { enviarSMS } = require("../../utils/sms");
 
 // ================= CADASTRAR USUARIO =================
 const cadastrarUsuario = async (req, res) => {
@@ -55,21 +56,62 @@ const cadastrarUsuario = async (req, res) => {
       });
     }
 
-    // ========== VALIDAÇÃO DO TELEFONE ==========
+    // ========== VALIDAÇÃO E FORMATAÇÃO DO TELEFONE ==========
     const telefoneLimpo = telefone.replace(/\D/g, '');
-    if (telefoneLimpo.length < 10 || telefoneLimpo.length > 11) {
+    
+    // console.log(`Telefone recebido: ${telefone}`);
+    // console.log(`Telefone limpo: ${telefoneLimpo}`);
+    // console.log(`Quantidade de dígitos: ${telefoneLimpo.length}`);
+
+    // ========== NOVA VALIDAÇÃO PARA FORMATO INTERNACIONAL ==========
+    const validarTelefoneBrasileiro = (telefoneLimpo) => {
+      // formato nacional: 10 dígitos (DDD + 8) ou 11 dígitos (DDD + 9)
+      if (telefoneLimpo.length === 10 || telefoneLimpo.length === 11) {
+        const telefoneRegex = /^[1-9]{2}9?[0-9]{8}$/;
+        return telefoneRegex.test(telefoneLimpo);
+      }
+      
+      // formato internacional: 12 dígitos (55 + DDD + 8) ou 13 dígitos (55 + DDD + 9)
+      if (telefoneLimpo.length === 12 || telefoneLimpo.length === 13) {
+        const telefoneRegex = /^55[1-9]{2}9?[0-9]{8}$/;
+        return telefoneRegex.test(telefoneLimpo);
+      }
+      
+      return false;
+    };
+
+    if (!validarTelefoneBrasileiro(telefoneLimpo)) {
       return res.status(400).json({ 
-        error: "Telefone deve ter 10 ou 11 dígitos (com DDD)." 
+        error: "Número de telefone inválido. Use formato: (11) 95856-8249 ou +5511958568249" 
       });
     }
 
-    //verifica se é um número válido
-    const telefoneRegex = /^[1-9]{2}9?[0-9]{8}$/;
-    if (!telefoneRegex.test(telefoneLimpo)) {
-      return res.status(400).json({ 
-        error: "Número de telefone inválido." 
-      });
-    }
+    // ========== FORMATAÇÃO PARA PADRÃO INTERNACIONAL (Twilio) ==========
+    const formatarTelefoneParaInternacional = (telefoneLimpo) => {
+      const apenasNumeros = telefoneLimpo.replace(/\D/g, '');
+      
+      //já está no formato internacional
+      if (telefone.startsWith('+')) {
+        return telefone;
+      }
+      
+      //formato nacional (10 ou 11 dígitos)
+      if (apenasNumeros.length === 10 || apenasNumeros.length === 11) {
+        const numeroSemZero = apenasNumeros.replace(/^0/, '');
+        return `+55${numeroSemZero}`;
+      }
+      
+      //formato internacional sem o + (12 ou 13 dígitos)
+      if (apenasNumeros.length === 12 || apenasNumeros.length === 13) {
+        return `+${apenasNumeros}`;
+      }
+      
+      return telefone;
+    };
+
+    const telefoneFormatado = formatarTelefoneParaInternacional(telefone);
+    
+    // console.log(`Telefone final formatado: ${telefoneFormatado}`);
 
     // ========== VALIDAÇÃO DA SENHA ==========
     const senhaTrimmed = senha_hash.trim();
@@ -134,7 +176,8 @@ const cadastrarUsuario = async (req, res) => {
     }
 
     try {
-      const usuarioExistenteTelefone = await usuarioDAO.selectByTelefone(telefoneLimpo);
+      //verifica pelo telefone FORMATADO (padrão internacional)
+      const usuarioExistenteTelefone = await usuarioDAO.selectByTelefone(telefoneFormatado);
       if (usuarioExistenteTelefone) {
         return res.status(409).json({ 
           error: "Já existe uma conta com este telefone." 
@@ -153,7 +196,7 @@ const cadastrarUsuario = async (req, res) => {
     const usuario = await usuarioDAO.insertUsuario({
       nome: nomeTrimmed,
       email: emailTrimmed,
-      telefone: telefoneLimpo,
+      telefone: telefoneFormatado,
       senha_hash: senhaCriptografada,
       tipo_conta: null,
     });
@@ -388,29 +431,59 @@ const atualizarPerfil = async (req, res) => {
 // ================= SOLICITAR RECUPERAÇÃO DE SENHA =================
 const solicitarRecuperacaoSenha = async (req, res) => {
   try {
-    const { email } = req.body;
-    if (!email) return res.status(400).json({ error: "E-mail é obrigatório" });
+    const { email, telefone } = req.body;
+    
+    //validação básica
+    if (!email && !telefone) {
+      return res.status(400).json({ 
+        error: "E-mail ou telefone é obrigatório" 
+      });
+    }
 
-    const usuario = await usuarioDAO.selectByEmail(email).catch(() => null);
+    let usuario = null
 
-    // Responde 200 para não revelar se o email existe
+    // busca usuário por email ou telefone
+    if (email) {
+      usuario = await usuarioDAO.selectByEmail(email).catch(() => null);
+    } else if (telefone) {
+      usuario = await usuarioDAO.selectByTelefone(telefone).catch(() => null);
+    }
+
+    // res200 para não revelar se o usuário existe
     if (usuario) {
       const codigo = Math.floor(10000 + Math.random() * 90000).toString();
       const expira = new Date(Date.now() + 15 * 60 * 1000); // 15 min
       
       await usuarioDAO.criarCodigo(usuario.id, codigo, expira);
 
-      // Envia email usando Mailgun (texto + HTML)
-      await enviarEmail(email, 'Código de Recuperação - Facilita', {
-        text: `Seu código de recuperação é: ${codigo} (válido por 15 minutos).\n\nSe você não solicitou esta recuperação, ignore este e-mail.`,
-        html: buildOtpHtml(codigo),
-      });
+      // envia por email (se email foi fornecido)
+      if (email && usuario.email) {
+        try {
+          await enviarEmail(usuario.email, 'Código de Recuperação - Facilita', {
+            text: `Seu código de recuperação é: ${codigo} (válido por 15 minutos).`,
+            html: buildOtpHtml(codigo),
+          });
+          console.log(`📧 Código enviado por email para: ${usuario.email}`); //debug
+        } catch (emailError) {
+          console.error("❌ Erro no envio por email:", emailError.message);
+        }
+      }
 
-      console.log(`📧 Código de recuperação gerado para: ${email} - Código: ${codigo}`);
+      // envia por SMS (se telefone foi fornecido)
+      if (telefone && usuario.telefone) {
+        try {
+          await enviarSMS(usuario.telefone, codigo);
+          console.log(`📱 Código enviado por SMS para: ${usuario.telefone}`);
+        } catch (smsError) {
+          console.error("❌ Erro no envio por SMS:", smsError.message);
+        }
+      }
+
+      console.log(`🔑 Código de recuperação gerado: ${codigo}`);
     }
 
     return res.json({ 
-      message: "Se este e-mail estiver cadastrado, você receberá um código em instantes." 
+      message: "Se seus dados estiverem cadastrados, você receberá um código em instantes." 
     });
     
   } catch (err) {
@@ -425,45 +498,55 @@ const solicitarRecuperacaoSenha = async (req, res) => {
 // ================= REDEFINIR SENHA =================
 const redefinirSenha = async (req, res) => {
   try {
-    const { email, codigo, novaSenha } = req.body;
-    if (!email || !codigo || !novaSenha) {
+    const { email, telefone, codigo, novaSenha } = req.body;
+    
+    // ========== VALIDAÇÃO DOS CAMPOS OBRIGATÓRIOS ==========
+    if ((!email && !telefone) || !codigo || !novaSenha) {
       return res.status(400).json({ 
-        error: "Email, código e nova senha são obrigatórios" 
+        error: "Email/telefone, código e nova senha são obrigatórios" 
       });
     }
 
-    // Validações de senha (adicione conforme suas regras)
-    if (novaSenha.length < 6) {
+    // ========== VALIDAÇÃO DA SENHA ==========
+    if (novaSenha.length < 8) {
       return res.status(400).json({ 
         error: "A senha deve ter pelo menos 8 caracteres" 
       });
     }
 
-    const usuario = await usuarioDAO.selectByEmail(email);
+    let usuario = null;
+
+    // ========== BUSCAR USUÁRIO POR EMAIL OU TELEFONE ==========
+    if (email) {
+      usuario = await usuarioDAO.selectByEmail(email);
+    } else if (telefone) {
+      usuario = await usuarioDAO.selectByTelefone(telefone);
+    }
+
     if (!usuario) {
       return res.status(400).json({ 
         error: "Código inválido ou expirado" 
       });
     }
 
+    // ========== VALIDAR CÓDIGO ==========
     const registro = await usuarioDAO.buscarCodigo(usuario.id, codigo);
     const agora = new Date();
     
-    // Garante que 'registro.expira' é tratado como Date
     if (!registro || registro.usado || new Date(registro.expira) < agora) {
       return res.status(400).json({ 
         error: "Código inválido ou expirado" 
       });
     }
 
-    // Criptografa a nova senha
+    // ========== CRIPTOGRAFAR NOVA SENHA ==========
     const senhaCriptografada = await bcrypt.hash(novaSenha, 10);
     
-    // Atualiza a senha e marca o código como usado
+    // ========== ATUALIZAR SENHA E MARCAR CÓDIGO COMO USADO ==========
     await usuarioDAO.updaterSenha(usuario.id, senhaCriptografada);
     await usuarioDAO.marcarComoUsado(registro.id);
 
-    console.log(`✅ Senha redefinida com sucesso para: ${email}`);
+    console.log(`✅ Senha redefinida com sucesso para: ${email || telefone}`);
 
     return res.json({ 
       message: "Senha atualizada com sucesso" 
