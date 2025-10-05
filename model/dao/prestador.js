@@ -22,31 +22,60 @@ const insertPrestador = async (prestador) => {
       throw new Error('CPF inválido, use 11 dígitos numéricos.');
     }
 
-    const novoPrestador = await prisma.prestador.create({
-      data: {
-        id_usuario: prestador.id_usuario,
-        locais: {
-          connect: prestador.locais.map(id => ({ id }))
-        },
-        documentos: {
-          create: prestador.documentos.map(doc => ({
-            tipo_documento: doc.tipo_documento,
-            valor: doc.valor,
-            data_validade: doc.data_validade ? new Date(doc.data_validade) : null,
-            arquivo_url: doc.arquivo_url || null
-          }))
-        }
-      },
-      include: {
-        usuario: true,
-        locais: true,
-        documentos: true
+    const result = await prisma.$transaction(async (prisma) => {
+      //verificação se usuário existe e não possui outro tipo de conta
+      const usuarioExistente = await prisma.usuario.findUnique({
+        where: { id: prestador.id_usuario }
+      });
+
+      if (!usuarioExistente) {
+        throw new Error('Usuário não encontrado.');
       }
+
+      if (usuarioExistente.tipo_conta && usuarioExistente.tipo_conta !== 'PRESTADOR') {
+        throw new Error(`Este usuário já possui perfil de ${usuarioExistente.tipo_conta}.`);
+      }
+
+      //atualiza o tipo_conta do usuário primeiro
+      await prisma.usuario.update({
+        where: { id: prestador.id_usuario },
+        data: { tipo_conta: 'PRESTADOR' }
+      });
+
+      //cria o prestador
+      const novoPrestador = await prisma.prestador.create({
+        data: {
+          id_usuario: prestador.id_usuario,
+          locais: {
+            connect: prestador.locais.map(id => ({ id }))
+          },
+          documentos: {
+            create: prestador.documentos.map(doc => ({
+              tipo_documento: doc.tipo_documento,
+              valor: doc.valor,
+              data_validade: doc.data_validade ? new Date(doc.data_validade) : null,
+              arquivo_url: doc.arquivo_url || null
+            }))
+          }
+        },
+        include: {
+          usuario: true,
+          locais: true,
+          documentos: true
+        }
+      });
+
+      return novoPrestador;
     });
 
-    return novoPrestador;
+    return result;
   } catch (error) {
     console.error("Erro ao inserir prestador:", error);
+    
+    if (error.code === 'P2002') {
+      throw new Error('Já existe um perfil de prestador para este usuário.');
+    }
+    
     throw new Error(error.message || 'Erro interno ao criar prestador.');
   }
 };

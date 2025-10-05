@@ -17,51 +17,205 @@ const cadastrarUsuario = async (req, res) => {
   try {
     const { nome, email, telefone, senha_hash } = req.body;
 
+    // ========== VALIDAÇÕES DE CAMPOS OBRIGATÓRIOS ==========
     if (!nome || !email || !telefone || !senha_hash) {
-      return res
-        .status(400)
-        .json({ error: "Preencha todos os campos obrigatórios." });
+      return res.status(400).json({ 
+        error: "Preencha todos os campos obrigatórios: nome, email, telefone e senha." 
+      });
     }
 
-    const senha = await bcrypt.hash(senha_hash, 10);
+    // ========== VALIDAÇÃO DO NOME ==========
+    const nomeTrimmed = nome.trim();
+    if (nomeTrimmed.length < 2 || nomeTrimmed.length > 100) {
+      return res.status(400).json({ 
+        error: "Nome deve ter entre 2 e 100 caracteres." 
+      });
+    }
 
+    // valida se nome contém apenas letras e espaços
+    const nomeRegex = /^[A-Za-zÀ-ÿ\s']+$/;
+    if (!nomeRegex.test(nomeTrimmed)) {
+      return res.status(400).json({ 
+        error: "Nome deve conter apenas letras e espaços." 
+      });
+    }
+
+    // ========== VALIDAÇÃO DO EMAIL ==========
+    const emailTrimmed = email.trim().toLowerCase();
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(emailTrimmed)) {
+      return res.status(400).json({ 
+        error: "Formato de email inválido." 
+      });
+    }
+
+    if (emailTrimmed.length > 255) {
+      return res.status(400).json({ 
+        error: "Email muito longo. Máximo 255 caracteres." 
+      });
+    }
+
+    // ========== VALIDAÇÃO DO TELEFONE ==========
+    const telefoneLimpo = telefone.replace(/\D/g, '');
+    if (telefoneLimpo.length < 10 || telefoneLimpo.length > 11) {
+      return res.status(400).json({ 
+        error: "Telefone deve ter 10 ou 11 dígitos (com DDD)." 
+      });
+    }
+
+    //verifica se é um número válido
+    const telefoneRegex = /^[1-9]{2}9?[0-9]{8}$/;
+    if (!telefoneRegex.test(telefoneLimpo)) {
+      return res.status(400).json({ 
+        error: "Número de telefone inválido." 
+      });
+    }
+
+    // ========== VALIDAÇÃO DA SENHA ==========
+    const senhaTrimmed = senha_hash.trim();
+    
+    // Tamanho mínimo e máximo
+    if (senhaTrimmed.length < 8) {
+      return res.status(400).json({ 
+        error: "Senha deve ter no mínimo 8 caracteres." 
+      });
+    }
+
+    if (senhaTrimmed.length > 20) {
+      return res.status(400).json({ 
+        error: "Senha deve ter no máximo 20 caracteres." 
+      });
+    }
+
+    //força da senha
+    const forcaSenha = {
+      temMinuscula: /[a-z]/.test(senhaTrimmed),
+      temMaiuscula: /[A-Z]/.test(senhaTrimmed),
+      temNumero: /[0-9]/.test(senhaTrimmed),
+      temEspecial: /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(senhaTrimmed)
+    };
+
+    const criteriosAtendidos = Object.values(forcaSenha).filter(Boolean).length;
+
+    if (criteriosAtendidos < 3) {
+      return res.status(400).json({
+        error: "Senha fraca. Use letras maiúsculas, minúsculas, números e caracteres especiais.",
+        criterios: {
+          minimo: "8 caracteres",
+          recomendado: "Letras maiúsculas, minúsculas, números e caracteres especiais"
+        }
+      });
+    }
+
+    //senhas comuns que vao ser rejeitadas
+    const senhasFracas = [
+      '12345678', 'password', 'senha123', 'admin123', 'qwertyui',
+      '123456789', '11111111', '00000000', 'abcdefgh'
+    ];
+
+    if (senhasFracas.includes(senhaTrimmed.toLowerCase())) {
+      return res.status(400).json({ 
+        error: "Senha muito comum. Escolha uma senha mais segura." 
+      });
+    }
+
+    // ========== VERIFICAR SE USUÁRIO JÁ EXISTE ==========
+    try {
+      const usuarioExistenteEmail = await usuarioDAO.selectByEmail(emailTrimmed);
+      if (usuarioExistenteEmail) {
+        return res.status(409).json({ 
+          error: "Já existe uma conta com este email." 
+        });
+      }
+    } catch (error) {
+      if (!error.message.includes('não encontrado')) {
+        throw error;
+      }
+    }
+
+    try {
+      const usuarioExistenteTelefone = await usuarioDAO.selectByTelefone(telefoneLimpo);
+      if (usuarioExistenteTelefone) {
+        return res.status(409).json({ 
+          error: "Já existe uma conta com este telefone." 
+        });
+      }
+    } catch (error) {
+      if (!error.message.includes('não encontrado')) {
+        throw error;
+      }
+    }
+
+    // ========== CRIPTOGRAFAR SENHA ==========
+    const senhaCriptografada = await bcrypt.hash(senhaTrimmed, 12);
+
+    // ========== CRIAR USUÁRIO ==========
     const usuario = await usuarioDAO.insertUsuario({
-      nome,
-      email,
-      telefone,
-      senha_hash: senha,
+      nome: nomeTrimmed,
+      email: emailTrimmed,
+      telefone: telefoneLimpo,
+      senha_hash: senhaCriptografada,
       tipo_conta: null,
     });
 
     if (!usuario) {
-      return res.status(500).json({ error: "Erro ao cadastrar usuário." });
+      return res.status(500).json({ 
+        error: "Erro ao cadastrar usuário. Tente novamente." 
+      });
     }
 
-    // gerar token JWT
+    // ========== GERAR TOKEN JWT ==========
     const token = jwt.sign(
-      { id: usuario.id, tipo_conta: usuario.tipo_conta, email: usuario.email },
+      { 
+        id: usuario.id, 
+        tipo_conta: usuario.tipo_conta, 
+        email: usuario.email 
+      },
       process.env.JWT_SECRET,
-      { expiresIn: "8h" }
+      { 
+        expiresIn: "8h",
+        issuer: 'facilita-api',
+        subject: usuario.id.toString()
+      }
     );
 
+    // ========== RESPOSTA DE SUCESSO ==========
     return res.status(201).json({
       message: "Usuário cadastrado com sucesso!",
       token,
-      usuario,
-      proximo_passo:
-        usuario.tipo_conta === "CONTRATANTE"
-          ? "completar_perfil_contratante"
-          : "completar_perfil_prestador",
+      usuario: {
+        id: usuario.id,
+        nome: usuario.nome,
+        email: usuario.email,
+        telefone: usuario.telefone,
+        tipo_conta: usuario.tipo_conta,
+        criado_em: usuario.criado_em
+      },
+      proximo_passo: "escolher_tipo_conta",
+      seguranca: {
+        senha_forte: true,
+        email_validado: false,
+        conta_ativa: true
+      }
     });
+
   } catch (error) {
     console.error("Erro ao cadastrar usuario:", error);
-    return res
-      .status(500)
-      .json({ error: "Erro interno ao cadastrar usuário." });
+    
+    //tratamento de erros especificos do prisma
+    if (error.code === 'P2002') {
+      const campo = error.meta?.target?.[0] || 'dados';
+      return res.status(409).json({ 
+        error: `Já existe uma conta com estes ${campo}.` 
+      });
+    }
+
+    return res.status(500).json({ 
+      error: "Erro interno ao processar cadastro. Tente novamente." 
+    });
   }
 };
 
-// ================= LOGIN =================
 // ================= LOGIN =================
 const login = async (req, res) => {
   try {

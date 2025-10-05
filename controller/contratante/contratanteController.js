@@ -6,8 +6,10 @@
  */
 
 const contratanteDAO = require('../../model/dao/contratante')
+const usuarioDAO = require('../../model/dao/usuario')
+const jwt = require('jsonwebtoken');
 
-//========== CRIAR CONTRATANTE ==========
+// ========== CRIAR CONTRATANTE ==========
 const cadastrarContratante = async function(req, res){
     try {
         const {id_localizacao, necessidade, cpf} = req.body
@@ -24,14 +26,36 @@ const cadastrarContratante = async function(req, res){
             cpf
         })
 
-        if (novoContratante) {
-            return res.status(201).json({ message: 'Contratante criado com sucesso!', contratante: novoContratante })
-        } else {
-            return res.status(500).json({ message: 'Erro ao criar contratante.' })
-        }
+        // Buscar usuário atualizado com o tipo_conta correto
+        const usuarioAtualizado = await usuarioDAO.selectByIdUsuario(id_usuario);
+
+        // Gerar novo token com tipo_conta atualizado
+        const token = jwt.sign(
+          { 
+            id: usuarioAtualizado.id, 
+            tipo_conta: usuarioAtualizado.tipo_conta, 
+            email: usuarioAtualizado.email 
+          },
+          process.env.JWT_SECRET,
+          { expiresIn: "8h" }
+        );
+
+        return res.status(201).json({ 
+          message: 'Contratante criado com sucesso!', 
+          token,
+          contratante: novoContratante,
+          usuario: usuarioAtualizado
+        })
 
     } catch (error) {
         console.error(error)
+        
+        if (error.message.includes('já existe') || 
+            error.message.includes('já possui') ||
+            error.message.includes('não encontrado')) {
+          return res.status(400).json({ message: error.message });
+        }
+        
         return res.status(500).json({ message: 'Erro interno no servidor.' })
     }
 }
