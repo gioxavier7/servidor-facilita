@@ -311,6 +311,23 @@ async function marcarComoUsado(id) {
   })
 }
 
+const buscarCodigoPorNumero = async (codigo) => {
+  try {
+    const registros = await prisma.recuperacaoSenha.findMany({
+      where: {
+        codigo: codigo
+      },
+      include: {
+        usuario: true
+      }
+    });
+    
+    return registros;
+  } catch (error) {
+    throw error;
+  }
+};
+
 module.exports = {
   insertUsuario,
   updateUsuario,
@@ -323,5 +340,6 @@ module.exports = {
   updaterSenha,
   criarCodigo,
   buscarCodigo,
-  marcarComoUsado
+  marcarComoUsado,
+  buscarCodigoPorNumero
 }
