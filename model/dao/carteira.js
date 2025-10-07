@@ -4,7 +4,13 @@ const prisma = new PrismaClient();
 // Criar carteira
 const insertCarteira = async function(carteira){
     try {
-        return await prisma.carteira.create({ data: carteira });
+        return await prisma.carteira.create({ 
+            data: {
+                id_usuario: carteira.id_usuario,
+                chave_pagbank: carteira.chave_pagbank,
+                saldo: carteira.saldo || 0
+            } 
+        });
     } catch (error) {
         console.error('Erro ao criar carteira', error);
         return false;

@@ -32,11 +32,12 @@ const cadastrarServico = async (req, res) => {
       })
     }
 
-    const { id_categoria, descricao, id_localizacao } = req.body
+    const { id_categoria, descricao, id_localizacao, valor } = req.body
 
     if (!descricao) {
       return res.status(400).json({ status_code: 400, message: 'Campos obrigatórios: descricao' })
     }
+
     const contratante = await contratanteDAO.selectContratanteByUsuarioId(req.user.id)
     
     if (!contratante) {
@@ -47,11 +48,12 @@ const cadastrarServico = async (req, res) => {
     }
 
     const novoServico = await servicoDAO.insertServico({
-      id_contratante: contratante.id, //id do contratante 
+      id_contratante: contratante.id,
       id_prestador: null,
       id_categoria: id_categoria || null,
       descricao,
       id_localizacao: id_localizacao || null,
+      valor: valor || null,
       status: StatusServico.PENDENTE
     })
 
@@ -384,7 +386,7 @@ const finalizarServico = async (req, res) => {
       })
     }
 
-    const servicoFinalizado = await servicoDAO.finalizarServico(Number(id), prestador.id) //usa o id do prestador
+    const servicoFinalizado = await servicoDAO.finalizarServico(Number(id), prestador.id)
 
     res.status(200).json({ 
       status_code: 200, 

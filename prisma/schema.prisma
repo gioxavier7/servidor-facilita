@@ -83,6 +83,7 @@ model Servico {
   id_contratante   Int
   id_prestador     Int?
   id_categoria     Int?
+  valor            Decimal?      @db.Decimal(10, 2)
   descricao        String
   status           StatusServico @default(PENDENTE)
   data_solicitacao DateTime      @default(now())

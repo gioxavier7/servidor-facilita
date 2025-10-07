@@ -1,15 +1,31 @@
 const carteiraDAO = require('../../model/dao/carteira')
 
 //criar carteira
+//criar carteira
 const criarCarteira = async function(req, res){
     try {
-        const { id_usuario, chave_pagbank} = req.body
+        const { chave_pagbank, saldo } = req.body
+        const id_usuario = req.user.id
 
-        if(!id_usuario || !chave_pagbank){
-            return res.status(400).json({staus_code: 400, message: 'Dados inválidos ou incorretos.'})
+        if(!chave_pagbank){
+            return res.status(400).json({status_code: 400, message: 'Chave PagBank é obrigatória.'})
         }
 
-        const carteira = await carteiraDAO.insertCarteira({id_usuario, chave_pagbank})
+        // ✅ VERIFICAR SE O USUÁRIO JÁ TEM CARTEIRA
+        const carteiraExistente = await carteiraDAO.selectCarteiraByUsuario(id_usuario);
+        if (carteiraExistente) {
+            return res.status(400).json({ 
+                status_code: 400, 
+                message: 'Usuário já possui uma carteira.' 
+            });
+        }
+
+        const carteira = await carteiraDAO.insertCarteira({
+            id_usuario,
+            chave_pagbank, 
+            saldo: saldo || 0
+        })
+        
         if(!carteira)
             return res.status(500).json({status_code: 500, message: 'Erro ao criar carteira.'})
 
@@ -22,8 +38,7 @@ const criarCarteira = async function(req, res){
 
 const buscarCarteira = async function(req, res){
     try {
-        const id_usuario = Number(req.params.id)
-        if (!id_usuario) return res.status(400).json({ status_code: 400, message: 'ID do usuário obrigatório' });
+        const id_usuario = req.user.id;
 
         const carteira = await carteiraDAO.selectCarteiraByUsuario(id_usuario);
         if(!carteira)
