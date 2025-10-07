@@ -13,7 +13,7 @@ const jwt = require('jsonwebtoken');
 const cadastrarContratante = async function(req, res){
     try {
         const {id_localizacao, necessidade, cpf} = req.body
-        const id_usuario = req.usuario.id //extraído do jwt
+        const id_usuario = req.user.id 
 
         if(!id_localizacao || !necessidade || !cpf){
             return res.status(400).json({message: 'Dados inválidos ou insuficientes.'})

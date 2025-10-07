@@ -10,7 +10,7 @@ const prisma = new PrismaClient()
 
 /**
  * cadastra um novo serviço
- * @param {Object} servico - {id_contratante, id_prestador?, id_categoria?, descricao, id_localizacao?, status?}
+ * @param {Object} servico - {id_contratante, id_prestador?, id_categoria?, descricao, valor?, id_localizacao?, status?}
  * @returns {Object|false} - serviço criado ou false em caso de erro
  */
 const insertServico = async (servico) => {
@@ -21,6 +21,7 @@ const insertServico = async (servico) => {
         id_prestador: servico.id_prestador,
         id_categoria: servico.id_categoria,
         descricao: servico.descricao,
+        valor: servico.valor,
         id_localizacao: servico.id_localizacao,
         status: servico.status
       },
