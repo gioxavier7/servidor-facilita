@@ -159,10 +159,29 @@ const deletePrestador = async (id) => {
   }
 }
 
+const selectPrestadorByUsuarioId = async (usuarioId) => {
+  try {
+    const prestador = await prisma.prestador.findFirst({
+      where: { 
+        id_usuario: usuarioId 
+      },
+      include: {
+        usuario: true
+      }
+    })
+
+    return prestador || false
+  } catch (error) {
+    console.error("Erro ao buscar prestador por usuário ID:", error)
+    return false
+  }
+}
+
 module.exports = {
   insertPrestador,
   selectAllPrestadores,
   selectPrestadorById,
   updatePrestador,
-  deletePrestador
+  deletePrestador,
+  selectPrestadorByUsuarioId
 }

@@ -1,9 +1,9 @@
 /**
  * Controller de Serviço
  * Fluxo:
- *  - Cadastro
- *  - Atualização
- *  - Exclusão
+ *  - Cadastro (apenas contratantes)
+ *  - Atualização (com validações de propriedade)
+ *  - Exclusão (apenas donos do serviço)
  *  - Listagem / Buscar por ID
  *
  * dev: Giovanna
@@ -11,9 +11,12 @@
  */
 
 const servicoDAO = require('../../model/dao/servico')
+const contratanteDAO = require('../../model/dao/contratante')
+const prestadorDAO = require('../../model/dao/prestador')
+const { StatusServico } = require('@prisma/client')
 
 /**
- * Cadastrar um novo serviço
+ * Cadastrar um novo serviço (APENAS CONTRATANTES)
  */
 const cadastrarServico = async (req, res) => {
   try {
@@ -21,19 +24,35 @@ const cadastrarServico = async (req, res) => {
       return res.status(415).json({ status_code: 415, message: 'Content-type inválido. Use application/json' })
     }
 
-    const { id_contratante, id_prestador, id_categoria, descricao, id_localizacao, status } = req.body
+    //verifica se é contratante
+    if (!req.user || req.user.tipo !== 'CONTRATANTE') {
+      return res.status(403).json({ 
+        status_code: 403, 
+        message: 'Acesso permitido apenas para contratantes' 
+      })
+    }
 
-    if (!id_contratante || !descricao) {
-      return res.status(400).json({ status_code: 400, message: 'Campos obrigatórios: id_contratante, descricao' })
+    const { id_categoria, descricao, id_localizacao } = req.body
+
+    if (!descricao) {
+      return res.status(400).json({ status_code: 400, message: 'Campos obrigatórios: descricao' })
+    }
+    const contratante = await contratanteDAO.selectContratanteByUsuarioId(req.user.id)
+    
+    if (!contratante) {
+      return res.status(404).json({ 
+        status_code: 404, 
+        message: 'Perfil de contratante não encontrado' 
+      })
     }
 
     const novoServico = await servicoDAO.insertServico({
-      id_contratante,
-      id_prestador: id_prestador || null,
+      id_contratante: contratante.id, //id do contratante 
+      id_prestador: null,
       id_categoria: id_categoria || null,
       descricao,
       id_localizacao: id_localizacao || null,
-      status: status || 'pendente'
+      status: StatusServico.PENDENTE
     })
 
     if (!novoServico) {
@@ -48,7 +67,7 @@ const cadastrarServico = async (req, res) => {
 }
 
 /**
- * Atualizar um serviço
+ * atualizar um serviço (APENAS DONO DO SERVIÇO)
  */
 const atualizarServico = async (req, res) => {
   try {
@@ -57,23 +76,45 @@ const atualizarServico = async (req, res) => {
     }
 
     const { id } = req.params
-    const { id_prestador, id_categoria, descricao, id_localizacao, status } = req.body
+    const { id_categoria, descricao, id_localizacao } = req.body // remove campos sensíveis
 
     if (!id) {
       return res.status(400).json({ status_code: 400, message: 'ID do serviço é obrigatório' })
     }
 
+    // verifica se o serviço existe e se pertence ao usuairo
+    const servicoExistente = await servicoDAO.selectByIdServico(Number(id))
+    if (!servicoExistente) {
+      return res.status(404).json({ status_code: 404, message: 'Serviço não encontrado' })
+    }
+
+    //somente o  dono do serviço pode atualizar
+    if (servicoExistente.id_contratante !== req.user.id) {
+      return res.status(403).json({ 
+        status_code: 403, 
+        message: 'Acesso negado. Você não é o proprietário deste serviço' 
+      })
+    }
+
+    // impede a atualizacao de serviços ja aceitos
+    if (servicoExistente.status !== StatusServico.PENDENTE) {
+      return res.status(400).json({ 
+        status_code: 400, 
+        message: 'Não é possível atualizar um serviço que já foi aceito' 
+      })
+    }
+
     const atualizado = await servicoDAO.updateServico({
       id: Number(id),
-      id_prestador: id_prestador || null,
-      id_categoria: id_categoria || null,
-      descricao,
-      id_localizacao: id_localizacao || null,
-      status
+      id_prestador: servicoExistente.id_prestador,
+      id_categoria: id_categoria || servicoExistente.id_categoria,
+      descricao: descricao || servicoExistente.descricao,
+      id_localizacao: id_localizacao || servicoExistente.id_localizacao,
+      status: servicoExistente.status
     })
 
     if (!atualizado) {
-      return res.status(404).json({ status_code: 404, message: 'Serviço não encontrado ou erro ao atualizar' })
+      return res.status(500).json({ status_code: 500, message: 'Erro ao atualizar serviço' })
     }
 
     res.status(200).json({ status_code: 200, message: 'Serviço atualizado com sucesso', data: atualizado })
@@ -84,7 +125,7 @@ const atualizarServico = async (req, res) => {
 }
 
 /**
- * Deletar um serviço
+ * deletar um serviço (APENAS DONO DO SERVIÇO)
  */
 const deletarServico = async (req, res) => {
   try {
@@ -94,10 +135,30 @@ const deletarServico = async (req, res) => {
       return res.status(400).json({ status_code: 400, message: 'ID do serviço é obrigatório' })
     }
 
+    const servicoExistente = await servicoDAO.selectByIdServico(Number(id))
+    if (!servicoExistente) {
+      return res.status(404).json({ status_code: 404, message: 'Serviço não encontrado' })
+    }
+
+    //apenas o dono do serviço pode deletar
+    if (servicoExistente.id_contratante !== req.user.id) {
+      return res.status(403).json({ 
+        status_code: 403, 
+        message: 'Acesso negado. Você não é o proprietário deste serviço' 
+      })
+    }
+
+    if (servicoExistente.status !== StatusServico.PENDENTE) {
+      return res.status(400).json({ 
+        status_code: 400, 
+        message: 'Não é possível excluir um serviço que já foi aceito' 
+      })
+    }
+
     const deletado = await servicoDAO.deleteServico(Number(id))
 
     if (!deletado) {
-      return res.status(404).json({ status_code: 404, message: 'Serviço não encontrado' })
+      return res.status(500).json({ status_code: 500, message: 'Erro ao deletar serviço' })
     }
 
     res.status(200).json({ status_code: 200, message: 'Serviço deletado com sucesso', data: deletado })
@@ -108,13 +169,50 @@ const deletarServico = async (req, res) => {
 }
 
 /**
- * Listar todos os serviços
+ * Listar todos os serviços (COM FILTROS POR TIPO DE USUÁRIO)
  */
 const listarServicos = async (req, res) => {
   try {
-    const servicos = await servicoDAO.selectAllServico()
+    let servicos;
 
-    if (!servicos) {
+    // CONTRATANTES tem apenas seus próprios serviços
+    if (req.user.tipo === 'CONTRATANTE') {
+      const contratante = await contratanteDAO.selectContratanteByUsuarioId(req.user.id);
+      if (!contratante) {
+        return res.status(404).json({ 
+          status_code: 404, 
+          message: 'Perfil de contratante não encontrado' 
+        });
+      }
+      servicos = await servicoDAO.selectServicosPorContratante(contratante.id);
+    } 
+    // PRESTADORES tem serviços disponíveis + seus serviços aceitos
+    else if (req.user.tipo === 'PRESTADOR') {
+      
+      const prestador = await prestadorDAO.selectPrestadorByUsuarioId(req.user.id);
+      
+      if (!prestador) {
+        return res.status(404).json({ 
+          status_code: 404, 
+          message: 'Perfil de prestador não encontrado' 
+        });
+      }
+
+      const [disponiveis, meusServicos] = await Promise.all([
+        servicoDAO.selectServicosDisponiveis(),
+        servicoDAO.selectServicosPorPrestador(prestador.id) 
+      ]);
+      servicos = {
+        disponiveis: disponiveis || [],
+        meus_servicos: meusServicos || []
+      };
+    }
+    // ADMIN pode ver todos (se houver)
+    else {
+      servicos = await servicoDAO.selectAllServico();
+    }
+
+    if (!servicos || (Array.isArray(servicos) && servicos.length === 0)) {
       return res.status(404).json({ status_code: 404, message: 'Nenhum serviço encontrado' })
     }
 
@@ -126,7 +224,7 @@ const listarServicos = async (req, res) => {
 }
 
 /**
- * Buscar serviço por ID
+ * buscar serviço por ID (COM VALIDAÇÃO DE ACESSO)
  */
 const buscarServicoPorId = async (req, res) => {
   try {
@@ -142,10 +240,215 @@ const buscarServicoPorId = async (req, res) => {
       return res.status(404).json({ status_code: 404, message: 'Serviço não encontrado' })
     }
 
+    //apenas dono ou prestador atribuído podem ver
+    const isDono = servico.id_contratante === req.user.id;
+    const isPrestadorAtribuido = servico.id_prestador === req.user.id;
+    
+    if (!isDono && !isPrestadorAtribuido && req.user.tipo !== 'ADMIN') {
+      return res.status(403).json({ 
+        status_code: 403, 
+        message: 'Acesso negado a este serviço' 
+      })
+    }
+
     res.status(200).json({ status_code: 200, data: servico })
   } catch (error) {
     console.error(error)
     res.status(500).json({ status_code: 500, message: 'Erro interno do servidor' })
+  }
+}
+
+/**
+ * listar serviços disponíveis para prestadores
+ */
+const listarServicosDisponiveis = async (req, res) => {
+  try {
+    // verifica se o usuário é um prestador
+    if (!req.user || req.user.tipo !== 'PRESTADOR') {
+      return res.status(403).json({ 
+        status_code: 403, 
+        message: 'Acesso permitido apenas para prestadores' 
+      })
+    }
+
+    const servicos = await servicoDAO.selectServicosDisponiveis()
+
+    if (!servicos) {
+      return res.status(404).json({ 
+        status_code: 404, 
+        message: 'Nenhum serviço disponível encontrado' 
+      })
+    }
+
+    res.status(200).json({ 
+      status_code: 200, 
+      data: servicos 
+    })
+  } catch (error) {
+    console.error(error)
+    res.status(500).json({ 
+      status_code: 500, 
+      message: 'Erro interno do servidor' 
+    })
+  }
+}
+
+/**
+ * aceitar um serviço (prestador)
+ */
+const aceitarServico = async (req, res) => {
+  try {
+    // verifica se o usuário é um prestador autenticado
+    if (!req.user || req.user.tipo !== 'PRESTADOR') {
+      return res.status(403).json({ 
+        status_code: 403, 
+        message: 'Acesso permitido apenas para prestadores' 
+      })
+    }
+
+    const { id } = req.params
+
+    if (!id) {
+      return res.status(400).json({ 
+        status_code: 400, 
+        message: 'ID do serviço é obrigatório' 
+      })
+    }
+
+    const prestador = await prestadorDAO.selectPrestadorByUsuarioId(req.user.id)
+    
+    if (!prestador) {
+      return res.status(404).json({ 
+        status_code: 404, 
+        message: 'Perfil de prestador não encontrado' 
+      })
+    }
+
+    const servicoAceito = await servicoDAO.aceitarServico(Number(id), prestador.id) //id do prestador
+
+    res.status(200).json({ 
+      status_code: 200, 
+      message: 'Serviço aceito com sucesso', 
+      data: servicoAceito 
+    })
+  } catch (error) {
+    console.error(error)
+    
+    if (error.message.includes('já possui um serviço em andamento')) {
+      return res.status(400).json({ 
+        status_code: 400, 
+        message: error.message 
+      })
+    }
+    
+    if (error.message.includes('não está mais disponível')) {
+      return res.status(400).json({ 
+        status_code: 400, 
+        message: error.message 
+      })
+    }
+
+    res.status(500).json({ 
+      status_code: 500, 
+      message: 'Erro interno do servidor' 
+    })
+  }
+}
+/**
+ * finaliza um serviço (prestador)
+ */
+const finalizarServico = async (req, res) => {
+  try {
+    // verifica se o usuário é um prestador autenticado
+    if (!req.user || req.user.tipo !== 'PRESTADOR') {
+      return res.status(403).json({ 
+        status_code: 403, 
+        message: 'Acesso permitido apenas para prestadores' 
+      })
+    }
+
+    const { id } = req.params
+
+    if (!id) {
+      return res.status(400).json({ 
+        status_code: 400, 
+        message: 'ID do serviço é obrigatório' 
+      })
+    }
+    const prestador = await prestadorDAO.selectPrestadorByUsuarioId(req.user.id)
+    
+    if (!prestador) {
+      return res.status(404).json({ 
+        status_code: 404, 
+        message: 'Perfil de prestador não encontrado' 
+      })
+    }
+
+    const servicoFinalizado = await servicoDAO.finalizarServico(Number(id), prestador.id) //usa o id do prestador
+
+    res.status(200).json({ 
+      status_code: 200, 
+      message: 'Serviço finalizado com sucesso', 
+      data: servicoFinalizado 
+    })
+  } catch (error) {
+    console.error(error)
+    
+    if (error.message.includes('não autorizado') || 
+        error.message.includes('não está em andamento')) {
+      return res.status(400).json({ 
+        status_code: 400, 
+        message: error.message 
+      })
+    }
+
+    res.status(500).json({ 
+      status_code: 500, 
+      message: 'Erro interno do servidor' 
+    })
+  }
+}
+/**
+ * listar serviços do prestador autenticado
+ */
+const listarMeusServicos = async (req, res) => {
+  try {
+    // verifica se o usuário é um prestador
+    if (!req.user || req.user.tipo !== 'PRESTADOR') {
+      return res.status(403).json({ 
+        status_code: 403, 
+        message: 'Acesso permitido apenas para prestadores' 
+      })
+    }
+  
+    const prestador = await prestadorDAO.selectPrestadorByUsuarioId(req.user.id)
+    
+    if (!prestador) {
+      return res.status(404).json({ 
+        status_code: 404, 
+        message: 'Perfil de prestador não encontrado' 
+      })
+    }
+
+    const servicos = await servicoDAO.selectServicosPorPrestador(prestador.id)
+
+    if (!servicos || servicos.length === 0) {
+      return res.status(404).json({ 
+        status_code: 404, 
+        message: 'Nenhum serviço encontrado' 
+      })
+    }
+
+    res.status(200).json({ 
+      status_code: 200, 
+      data: servicos 
+    })
+  } catch (error) {
+    console.error(error)
+    res.status(500).json({ 
+      status_code: 500, 
+      message: 'Erro interno do servidor' 
+    })
   }
 }
 
@@ -154,5 +457,9 @@ module.exports = {
   atualizarServico,
   deletarServico,
   listarServicos,
-  buscarServicoPorId
+  buscarServicoPorId,
+  listarServicosDisponiveis,
+  aceitarServico,
+  finalizarServico,
+  listarMeusServicos
 }
