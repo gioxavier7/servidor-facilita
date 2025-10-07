@@ -63,6 +63,7 @@ const pagamentoRoutes = require('./routes/pagamentoRoutes')
 const carteiraRoutes = require('./routes/carteiraRoutes')
 const transacaoCarteiraRoutes = require('./routes/transacaoCarteiraRoutes')
 const pagbankWebhookRoutes = require('./routes/pagbankWebhookRoutes')
+const avaliacaoRoutes = require('./routes/avaliacaoRoutes')
 
 // ========== ROTAS ==========
 
@@ -95,6 +96,9 @@ app.use('/v1/facilita/transacao-carteira', transacaoCarteiraRoutes)
 
 // ROTAS DE WEBHOOK PAGBANK
 app.use('/v1/facilita/pagamento/webhook', pagbankWebhookRoutes)
+
+// ROTAS DE AVALIACAO
+app.use('/v1/facilita/avaliacao', avaliacaoRoutes)
 
 // ========== START DO SERVIDOR =========
 app.listen(PORT, () => {
