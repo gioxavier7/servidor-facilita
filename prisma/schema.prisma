@@ -31,6 +31,7 @@ model Contratante {
   usuario        Usuario      @relation(fields: [id_usuario], references: [id])
   pagamento      Pagamento[]
   servico        Servico[]
+  avaliacoes     Avaliacao[]
 
   @@index([id_localizacao], map: "Contratante_id_localizacao_fkey")
 }
@@ -43,6 +44,9 @@ model Prestador {
   pagamento  Pagamento[]
   servico    Servico[]
   locais     Localizacao[] @relation("LocalizacaoToPrestador")
+  avaliacoes Avaliacao[]
+
+  @@index([id_usuario], map: "Prestador_id_usuario_fkey")
 }
 
 model Documento {
@@ -83,12 +87,14 @@ model Servico {
   id_contratante   Int
   id_prestador     Int?
   id_categoria     Int?
+  valor            Decimal?      @db.Decimal(10, 2)
   descricao        String
   status           StatusServico @default(PENDENTE)
   data_solicitacao DateTime      @default(now())
   data_conclusao   DateTime?
   id_localizacao   Int?
   pagamentos       Pagamento[]
+  avaliacao        Avaliacao?    // ✅ NOVO: Avaliação do serviço
   categoria        Categoria?    @relation(fields: [id_categoria], references: [id])
   contratante      Contratante   @relation(fields: [id_contratante], references: [id])
   localizacao      Localizacao?  @relation(fields: [id_localizacao], references: [id])
@@ -99,6 +105,24 @@ model Servico {
   @@index([id_localizacao], map: "servico_id_localizacao_fkey")
   @@index([id_prestador], map: "servico_id_prestador_fkey")
   @@map("servico")
+}
+
+model Avaliacao {
+  id               Int        @id @default(autoincrement())
+  id_servico       Int        @unique  // Uma avaliação por serviço
+  id_contratante   Int
+  id_prestador     Int
+  nota             Int        // 1-5 estrelas
+  comentario       String?
+  data_avaliacao   DateTime   @default(now())
+  
+  servico          Servico      @relation(fields: [id_servico], references: [id])
+  contratante      Contratante  @relation(fields: [id_contratante], references: [id])
+  prestador        Prestador    @relation(fields: [id_prestador], references: [id])
+
+  @@index([id_prestador], map: "avaliacao_id_prestador_fkey")
+  @@index([id_contratante], map: "avaliacao_id_contratante_fkey")
+  @@map("avaliacao")
 }
 
 model Pagamento {
@@ -158,6 +182,8 @@ model Localizacao {
   contratantes Contratante[]
   servicos     Servico[]
   prestadores  Prestador[]   @relation("LocalizacaoToPrestador")
+
+  @@map("localizacao")
 }
 
 enum StatusServico {
