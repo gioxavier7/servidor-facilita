@@ -12,7 +12,7 @@ function autenticarToken(req, res, next) {
         const decoded = jwt.verify(token, process.env.JWT_SECRET)
         req.user = {
             id: decoded.id,
-            tipo: decoded.tipo_conta,
+            tipo_conta: decoded.tipo_conta,
             email: decoded.email
         }
         next()

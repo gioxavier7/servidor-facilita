@@ -4,7 +4,7 @@ const contratanteDAO = require('../../model/dao/contratante');
 const prestadorDAO = require('../../model/dao/prestador');
 
 /**
- * avaliar um serviço (apenas contratante que usou o serviço)
+ * avaliar um serviço (apenas contratante que usou o serviço) tipo
  */
 const avaliarServico = async (req, res) => {
   try {
