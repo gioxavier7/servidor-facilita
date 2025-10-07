@@ -25,7 +25,7 @@ const cadastrarServico = async (req, res) => {
     }
 
     //verifica se é contratante
-    if (!req.user || req.user.tipo !== 'CONTRATANTE') {
+    if (!req.user || req.user.tipo_conta !== 'CONTRATANTE') {
       return res.status(403).json({ 
         status_code: 403, 
         message: 'Acesso permitido apenas para contratantes' 
@@ -178,7 +178,7 @@ const listarServicos = async (req, res) => {
     let servicos;
 
     // CONTRATANTES tem apenas seus próprios serviços
-    if (req.user.tipo === 'CONTRATANTE') {
+    if (req.user.tipo_conta === 'CONTRATANTE') {
       const contratante = await contratanteDAO.selectContratanteByUsuarioId(req.user.id);
       if (!contratante) {
         return res.status(404).json({ 
@@ -189,7 +189,7 @@ const listarServicos = async (req, res) => {
       servicos = await servicoDAO.selectServicosPorContratante(contratante.id);
     } 
     // PRESTADORES tem serviços disponíveis + seus serviços aceitos
-    else if (req.user.tipo === 'PRESTADOR') {
+    else if (req.user.tipo_conta === 'PRESTADOR') {
       
       const prestador = await prestadorDAO.selectPrestadorByUsuarioId(req.user.id);
       
@@ -246,7 +246,7 @@ const buscarServicoPorId = async (req, res) => {
     const isDono = servico.id_contratante === req.user.id;
     const isPrestadorAtribuido = servico.id_prestador === req.user.id;
     
-    if (!isDono && !isPrestadorAtribuido && req.user.tipo !== 'ADMIN') {
+    if (!isDono && !isPrestadorAtribuido && req.user.tipo_conta !== 'ADMIN') {
       return res.status(403).json({ 
         status_code: 403, 
         message: 'Acesso negado a este serviço' 
@@ -266,7 +266,7 @@ const buscarServicoPorId = async (req, res) => {
 const listarServicosDisponiveis = async (req, res) => {
   try {
     // verifica se o usuário é um prestador
-    if (!req.user || req.user.tipo !== 'PRESTADOR') {
+    if (!req.user || req.user.tipo_conta !== 'PRESTADOR') {
       return res.status(403).json({ 
         status_code: 403, 
         message: 'Acesso permitido apenas para prestadores' 
@@ -301,7 +301,7 @@ const listarServicosDisponiveis = async (req, res) => {
 const aceitarServico = async (req, res) => {
   try {
     // verifica se o usuário é um prestador autenticado
-    if (!req.user || req.user.tipo !== 'PRESTADOR') {
+    if (!req.user || req.user.tipo_conta !== 'PRESTADOR') {
       return res.status(403).json({ 
         status_code: 403, 
         message: 'Acesso permitido apenas para prestadores' 
@@ -362,7 +362,7 @@ const aceitarServico = async (req, res) => {
 const finalizarServico = async (req, res) => {
   try {
     // verifica se o usuário é um prestador autenticado
-    if (!req.user || req.user.tipo !== 'PRESTADOR') {
+    if (!req.user || req.user.tipo_conta !== 'PRESTADOR') {
       return res.status(403).json({ 
         status_code: 403, 
         message: 'Acesso permitido apenas para prestadores' 
@@ -416,7 +416,7 @@ const finalizarServico = async (req, res) => {
 const listarMeusServicos = async (req, res) => {
   try {
     // verifica se o usuário é um prestador
-    if (!req.user || req.user.tipo !== 'PRESTADOR') {
+    if (!req.user || req.user.tipo_conta !== 'PRESTADOR') {
       return res.status(403).json({ 
         status_code: 403, 
         message: 'Acesso permitido apenas para prestadores' 
