@@ -137,9 +137,37 @@ const buscarPagamentoPorId = async function(req, res){
   }
 }
 
+/**
+ * atualizar pagamento com ID do PagBank
+ */
+const atualizarIdPagBank = async function(req, res){
+  try {
+    const { id_pagamento, id_pagbank } = req.body;
+
+    if (!id_pagamento || !id_pagbank) {
+      return res.status(400).json({ status_code: 400, message: 'ID do pagamento e ID PagBank são obrigatórios' })
+    }
+
+    const pagamentoAtualizado = await prisma.pagamento.update({
+      where: { id: id_pagamento },
+      data: { id_pagbank: id_pagbank }
+    });
+
+    res.status(200).json({ 
+      status_code: 200, 
+      message: 'ID PagBank atualizado com sucesso', 
+      data: pagamentoAtualizado 
+    })
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ status_code: 500, message: 'Erro interno do servidor' })
+  }
+};
+
 module.exports = {
   cadastrarPagamento,
   criarPagamentoPagBank,
   listarPagamentos,
-  buscarPagamentoPorId
+  buscarPagamentoPorId,
+  atualizarIdPagBank
 };

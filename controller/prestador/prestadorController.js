@@ -12,7 +12,7 @@ const jwt = require('jsonwebtoken');
 // ================= CADASTRAR PRESTADOR =================
 const cadastrarPrestador = async (req, res) => {
   try {
-    const id_usuario = req.usuario.id; // do JWT
+    const id_usuario = req.user.id; // do JWT
     const { locais, documentos } = req.body;
 
     // validação básica de locais
