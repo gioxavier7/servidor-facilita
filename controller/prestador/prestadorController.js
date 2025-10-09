@@ -13,15 +13,15 @@ const jwt = require('jsonwebtoken');
 const cadastrarPrestador = async (req, res) => {
   try {
     const id_usuario = req.user.id; // do JWT
-    const { localizacao, documentos } = req.body;
+    const { localizacao, documento } = req.body;
 
     // validação básica de localizacao
     if (!localizacao || !Array.isArray(localizacao) || localizacao.length === 0) {
       return res.status(400).json({ message: 'É necessário informar pelo menos um local.' });
     }
 
-    // validação CPF obrigatório dentro dos documentos
-    const cpfDoc = (documentos || []).find(doc => doc.tipo_documento === 'CPF');
+    // validação CPF obrigatório dentro dos documento
+    const cpfDoc = (documento || []).find(doc => doc.tipo_documento === 'CPF');
     if (!cpfDoc) {
       return res.status(400).json({ message: 'Documento CPF obrigatório.' });
     }
@@ -34,7 +34,7 @@ const cadastrarPrestador = async (req, res) => {
     const novoPrestador = await prestadorDAO.insertPrestador({
       id_usuario,
       localizacao,
-      documentos: documentos || []
+      documento: documento || []
     });
 
     //bscar usuário atualizado com o tipo_conta correto
@@ -102,9 +102,9 @@ const buscarPrestador = async (req, res) => {
 const atualizarPrestador = async (req, res) => {
   try {
     const id = parseInt(req.params.id)
-    const { localizacao, documentos } = req.body
+    const { localizacao, documento } = req.body
 
-    const prestadorAtualizado = await prestadorDAO.updatePrestador(id, { localizacao, documentos })
+    const prestadorAtualizado = await prestadorDAO.updatePrestador(id, { localizacao, documento })
 
     return res.status(200).json({
       message: 'Prestador atualizado com sucesso!',

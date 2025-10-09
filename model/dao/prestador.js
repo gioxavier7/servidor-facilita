@@ -12,7 +12,7 @@ const prisma = new PrismaClient()
 const insertPrestador = async (prestador) => {
   try {
     // validação de CPF obrigatório
-    const cpfDoc = (prestador.documentos || []).find(doc => doc.tipo_documento === 'CPF');
+    const cpfDoc = (prestador.documento || []).find(doc => doc.tipo_documento === 'CPF');
     if (!cpfDoc) {
       throw new Error('Documento CPF obrigatório.');
     }
@@ -47,10 +47,10 @@ const insertPrestador = async (prestador) => {
         data: {
           id_usuario: prestador.id_usuario,
           localizacao: {
-            connect: prestador.locais.map(id => ({ id }))
+            connect: prestador.localizacao.map(id => ({ id }))
           },
-          documentos: {
-            create: prestador.documentos.map(doc => ({
+          documento: {
+            create: prestador.documento.map(doc => ({
               tipo_documento: doc.tipo_documento,
               valor: doc.valor,
               data_validade: doc.data_validade ? new Date(doc.data_validade) : null,
@@ -61,7 +61,7 @@ const insertPrestador = async (prestador) => {
         include: {
           usuario: true,
           localizacao: true,  // CORRETO - mesmo nome do campo no schema
-          documentos: true
+          documento: true
         }
       });
 
@@ -84,7 +84,7 @@ const insertPrestador = async (prestador) => {
 const selectAllPrestadores = async () => {
   try {
     return await prisma.prestador.findMany({
-      include: { usuario: true, locais: true, documentos: true }
+      include: { usuario: true, localizacao: true, documento: true }
     })
   } catch (error) {
     console.error('Erro ao listar prestadores:', error)
@@ -97,7 +97,7 @@ const selectPrestadorById = async (id) => {
   try {
     const prestador = await prisma.prestador.findUnique({
       where: { id },
-      include: { usuario: true, locais: true, documentos: true }
+      include: { usuario: true, localizacao: true, documento: true }
     })
     if (!prestador) throw new Error('Prestador não encontrado.')
     return prestador
@@ -113,10 +113,10 @@ const updatePrestador = async (id, dados) => {
     const prestadorAtualizado = await prisma.prestador.update({
       where: { id },
       data: {
-        locais: dados.locais ? { set: dados.locais.map(idLocal => ({ id: idLocal })) } : undefined,
-        documentos: dados.documentos ? {
+        localizacao: dados.localizacao ? { set: dados.localizacao.map(idLocal => ({ id: idLocal })) } : undefined,
+        documento: dados.documento ? {
           deleteMany: {},
-          create: dados.documentos.map(doc => ({
+          create: dados.documento.map(doc => ({
             tipo_documento: doc.tipo_documento,
             valor: doc.valor,
             data_validade: doc.data_validade ? new Date(doc.data_validade) : null,
@@ -126,8 +126,8 @@ const updatePrestador = async (id, dados) => {
       },
       include: {
         usuario: true,
-        locais: true,
-        documentos: true
+        localizacao: true,
+        documento: true
       }
     })
     return prestadorAtualizado
@@ -141,11 +141,11 @@ const updatePrestador = async (id, dados) => {
 // ================= DELETAR PRESTADOR =================
 const deletePrestador = async (id) => {
   try {
-    // deleta documentos vinculados
+    // deleta documento vinculados
     await prisma.documento.deleteMany({ where: { id_prestador: id } })
 
-    // remove relação N:N com locais
-    await prisma.prestador.update({ where: { id }, data: { locais: { set: [] } } })
+    // remove relação N:N com localizacao
+    await prisma.prestador.update({ where: { id }, data: { localizacao: { set: [] } } })
 
     // deleta prestador
     const prestadorDeletado = await prisma.prestador.delete({
