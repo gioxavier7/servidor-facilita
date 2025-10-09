@@ -17,13 +17,13 @@ require('dotenv').config({
 
 // ========== CONFIGURAÇÃO DO SERVIDOR ==========
 const app = express()
-const PORT = process.env.PORT || 3000  // ✅ MOVER PARA CIMA
+const PORT = process.env.PORT || 3000
 
 app.use(bodyParser.json())
 
 // configuração de CORS (local + produção)
 const allowedOrigins = [
-  'http://localhost:5173',     // frontend local
+  'http://localhost:5174',     // frontend local
   process.env.FRONTEND_URL     // frontend em produção
 ]
 
