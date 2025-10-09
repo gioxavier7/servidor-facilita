@@ -23,7 +23,7 @@ app.use(bodyParser.json())
 
 // configuração de CORS (local + produção)
 const allowedOrigins = [
-  'http://localhost:5174',     // frontend local
+  'http://localhost:5173',     // frontend local
   process.env.FRONTEND_URL     // frontend em produção
 ]
 
