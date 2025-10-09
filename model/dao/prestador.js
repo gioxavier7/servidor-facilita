@@ -46,7 +46,7 @@ const insertPrestador = async (prestador) => {
       const novoPrestador = await prisma.prestador.create({
         data: {
           id_usuario: prestador.id_usuario,
-          locais: {
+          localizacao: {
             connect: prestador.locais.map(id => ({ id }))
           },
           documentos: {
@@ -60,7 +60,7 @@ const insertPrestador = async (prestador) => {
         },
         include: {
           usuario: true,
-          locais: true,
+          localizacao: true,  // CORRETO - mesmo nome do campo no schema
           documentos: true
         }
       });
