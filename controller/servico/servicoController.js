@@ -456,7 +456,6 @@ const listarMeusServicos = async (req, res) => {
 
 /**
  * Listar pedidos/histórico de serviços do contratante autenticado
- * com filtros opcionais por status
  */
 const listarPedidosContratante = async (req, res) => {
   try {
@@ -511,14 +510,14 @@ const listarPedidosContratante = async (req, res) => {
       })
     }
 
-    // Formata a resposta para incluir informações adicionais
+    // Formata a resposta com os campos corretos do schema
     const pedidosFormatados = servicos.map(servico => ({
       id: servico.id,
       descricao: servico.descricao,
       status: servico.status,
-      valor: servico.valor,
-      data_criacao: servico.data_criacao,
-      data_atualizacao: servico.data_atualizacao,
+      valor: servico.valor ? servico.valor.toNumber() : null, // Converte Decimal para Number
+      data_solicitacao: servico.data_solicitacao,
+      data_conclusao: servico.data_conclusao,
       categoria: servico.categoria ? {
         id: servico.categoria.id,
         nome: servico.categoria.nome
@@ -604,14 +603,14 @@ const buscarPedidoContratante = async (req, res) => {
       })
     }
 
-    // Formata resposta com detalhes completos
+    // Formata resposta com detalhes completos usando campos corretos
     const pedidoDetalhado = {
       id: servico.id,
       descricao: servico.descricao,
       status: servico.status,
-      valor: servico.valor,
-      data_criacao: servico.data_criacao,
-      data_atualizacao: servico.data_atualizacao,
+      valor: servico.valor ? servico.valor.toNumber() : null,
+      data_solicitacao: servico.data_solicitacao,
+      data_conclusao: servico.data_conclusao,
       categoria: servico.categoria ? {
         id: servico.categoria.id,
         nome: servico.categoria.nome,
