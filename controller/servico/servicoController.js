@@ -454,6 +454,200 @@ const listarMeusServicos = async (req, res) => {
   }
 }
 
+/**
+ * Listar pedidos/histórico de serviços do contratante autenticado
+ * com filtros opcionais por status
+ */
+const listarPedidosContratante = async (req, res) => {
+  try {
+    // Verifica se é contratante
+    if (!req.user || req.user.tipo_conta !== 'CONTRATANTE') {
+      return res.status(403).json({ 
+        status_code: 403, 
+        message: 'Acesso permitido apenas para contratantes' 
+      })
+    }
+
+    const { status, page = 1, limit = 10 } = req.query;
+
+    // Busca o perfil do contratante
+    const contratante = await contratanteDAO.selectContratanteByUsuarioId(req.user.id);
+    
+    if (!contratante) {
+      return res.status(404).json({ 
+        status_code: 404, 
+        message: 'Perfil de contratante não encontrado' 
+      })
+    }
+
+    // Busca os serviços do contratante com possíveis filtros
+    let servicos;
+    if (status) {
+      // Valida se o status é válido
+      if (!Object.values(StatusServico).includes(status)) {
+        return res.status(400).json({
+          status_code: 400,
+          message: `Status inválido. Status válidos: ${Object.values(StatusServico).join(', ')}`
+        })
+      }
+      servicos = await servicoDAO.selectServicosPorContratanteEStatus(
+        contratante.id, 
+        status,
+        parseInt(page),
+        parseInt(limit)
+      );
+    } else {
+      servicos = await servicoDAO.selectServicosPorContratante(
+        contratante.id,
+        parseInt(page),
+        parseInt(limit)
+      );
+    }
+
+    if (!servicos || servicos.length === 0) {
+      return res.status(404).json({ 
+        status_code: 404, 
+        message: 'Nenhum pedido encontrado' 
+      })
+    }
+
+    // Formata a resposta para incluir informações adicionais
+    const pedidosFormatados = servicos.map(servico => ({
+      id: servico.id,
+      descricao: servico.descricao,
+      status: servico.status,
+      valor: servico.valor,
+      data_criacao: servico.data_criacao,
+      data_atualizacao: servico.data_atualizacao,
+      categoria: servico.categoria ? {
+        id: servico.categoria.id,
+        nome: servico.categoria.nome
+      } : null,
+      localizacao: servico.localizacao ? {
+        id: servico.localizacao.id,
+        endereco: servico.localizacao.endereco,
+        cidade: servico.localizacao.cidade,
+        estado: servico.localizacao.estado
+      } : null,
+      prestador: servico.prestador ? {
+        id: servico.prestador.id,
+        usuario: {
+          nome: servico.prestador.usuario.nome,
+          email: servico.prestador.usuario.email
+        }
+      } : null
+    }));
+
+    // Informações de paginação
+    const totalPedidos = await servicoDAO.countServicosPorContratante(contratante.id);
+    const totalPages = Math.ceil(totalPedidos / parseInt(limit));
+
+    res.status(200).json({
+      status_code: 200,
+      data: {
+        pedidos: pedidosFormatados,
+        paginacao: {
+          pagina_atual: parseInt(page),
+          total_paginas: totalPages,
+          total_pedidos: totalPedidos,
+          por_pagina: parseInt(limit)
+        }
+      }
+    })
+
+  } catch (error) {
+    console.error('Erro ao listar pedidos do contratante:', error)
+    res.status(500).json({ 
+      status_code: 500, 
+      message: 'Erro interno do servidor' 
+    })
+  }
+}
+
+/**
+ * Buscar pedido específico do contratante
+ */
+const buscarPedidoContratante = async (req, res) => {
+  try {
+    const { id } = req.params
+
+    if (!id) {
+      return res.status(400).json({ 
+        status_code: 400, 
+        message: 'ID do pedido é obrigatório' 
+      })
+    }
+
+    // Verifica se é contratante
+    if (!req.user || req.user.tipo_conta !== 'CONTRATANTE') {
+      return res.status(403).json({ 
+        status_code: 403, 
+        message: 'Acesso permitido apenas para contratantes' 
+      })
+    }
+
+    const servico = await servicoDAO.selectByIdServico(Number(id))
+
+    if (!servico) {
+      return res.status(404).json({ 
+        status_code: 404, 
+        message: 'Pedido não encontrado' 
+      })
+    }
+
+    // Verifica se o pedido pertence ao contratante
+    const contratante = await contratanteDAO.selectContratanteByUsuarioId(req.user.id);
+    if (servico.id_contratante !== contratante.id) {
+      return res.status(403).json({ 
+        status_code: 403, 
+        message: 'Acesso negado a este pedido' 
+      })
+    }
+
+    // Formata resposta com detalhes completos
+    const pedidoDetalhado = {
+      id: servico.id,
+      descricao: servico.descricao,
+      status: servico.status,
+      valor: servico.valor,
+      data_criacao: servico.data_criacao,
+      data_atualizacao: servico.data_atualizacao,
+      categoria: servico.categoria ? {
+        id: servico.categoria.id,
+        nome: servico.categoria.nome,
+        descricao: servico.categoria.descricao
+      } : null,
+      localizacao: servico.localizacao ? {
+        id: servico.localizacao.id,
+        endereco: servico.localizacao.endereco,
+        cidade: servico.localizacao.cidade,
+        estado: servico.localizacao.estado,
+        cep: servico.localizacao.cep
+      } : null,
+      prestador: servico.prestador ? {
+        id: servico.prestador.id,
+        telefone: servico.prestador.telefone,
+        usuario: {
+          nome: servico.prestador.usuario.nome,
+          email: servico.prestador.usuario.email
+        }
+      } : null
+    }
+
+    res.status(200).json({ 
+      status_code: 200, 
+      data: pedidoDetalhado 
+    })
+
+  } catch (error) {
+    console.error('Erro ao buscar pedido:', error)
+    res.status(500).json({ 
+      status_code: 500, 
+      message: 'Erro interno do servidor' 
+    })
+  }
+}
+
 module.exports = {
   cadastrarServico,
   atualizarServico,
@@ -463,5 +657,7 @@ module.exports = {
   listarServicosDisponiveis,
   aceitarServico,
   finalizarServico,
-  listarMeusServicos
+  listarMeusServicos,
+  listarPedidosContratante,
+  buscarPedidoContratante
 }

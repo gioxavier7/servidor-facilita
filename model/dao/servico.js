@@ -169,32 +169,35 @@ const selectServicoById = async (id) => {
 }
 
 /**
- * Retorna serviços por contratante
- * @param {number} contratanteId 
- * @returns {Array|false} - lista de serviços do contratante
+ * Buscar serviços do contratante com paginação
  */
-const selectServicosPorContratante = async (contratanteId) => {
+const selectServicosPorContratante = async (idContratante, page = 1, limit = 10) => {
   try {
-    const servicos = await prisma.servico.findMany({
-      where: { 
-        id_contratante: contratanteId 
-      },
-      orderBy: { data_solicitacao: 'desc' },
+    const skip = (page - 1) * limit;
+    
+    return await prisma.servico.findMany({
+      where: { id_contratante: idContratante },
       include: {
+        categoria: true,
+        localizacao: true,
         prestador: {
           include: {
-            usuario: true
+            usuario: {
+              select: {
+                nome: true,
+                email: true
+              }
+            }
           }
-        },
-        categoria: true,
-        localizacao: true
-      }
-    })
-
-    return servicos
+        }
+      },
+      orderBy: { data_criacao: 'desc' },
+      skip: skip,
+      take: limit
+    });
   } catch (error) {
-    console.error('Erro ao buscar serviços do contratante: ', error)   
-    return false
+    console.error('Erro ao buscar serviços do contratante:', error);
+    throw error;
   }
 }
 
@@ -365,6 +368,56 @@ const selectServicosPorPrestador = async (prestadorId) => {
   }
 }
 
+/**
+ * Buscar serviços do contratante por status
+ */
+const selectServicosPorContratanteEStatus = async (idContratante, status, page = 1, limit = 10) => {
+  try {
+    const skip = (page - 1) * limit;
+    
+    return await prisma.servico.findMany({
+      where: { 
+        id_contratante: idContratante,
+        status: status
+      },
+      include: {
+        categoria: true,
+        localizacao: true,
+        prestador: {
+          include: {
+            usuario: {
+              select: {
+                nome: true,
+                email: true
+              }
+            }
+          }
+        }
+      },
+      orderBy: { data_criacao: 'desc' },
+      skip: skip,
+      take: limit
+    });
+  } catch (error) {
+    console.error('Erro ao buscar serviços do contratante por status:', error);
+    throw error;
+  }
+}
+
+/**
+ * Contar total de serviços do contratante
+ */
+const countServicosPorContratante = async (idContratante) => {
+  try {
+    return await prisma.servico.count({
+      where: { id_contratante: idContratante }
+    });
+  } catch (error) {
+    console.error('Erro ao contar serviços do contratante:', error);
+    throw error;
+  }
+}
+
 module.exports = {
   insertServico,
   selectAllServico,
@@ -376,5 +429,7 @@ module.exports = {
   aceitarServico,
   finalizarServico,
   selectServicosPorPrestador,
-  selectServicosPorContratante
+  selectServicosPorContratante,
+  selectServicosPorContratanteEStatus,
+  countServicosPorContratante
 }
