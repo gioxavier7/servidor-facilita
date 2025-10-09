@@ -20,7 +20,7 @@ const insertUsuario = async (usuario) => {
         tipo_conta: usuario.tipo_conta
       },
       include: {
-        prestador: { include: { documentos: true, locais: true } },
+        prestador: { include: { documento: true, locais: true } },
         contratante: true
       }
     })
@@ -41,7 +41,7 @@ const updateUsuario = async (id, data) => {
       where: { id },
       data,
       include: {
-        prestador: { include: { documentos: true, locais: true } },
+        prestador: { include: { documento: true, locais: true } },
         contratante: true
       }
     })
@@ -61,7 +61,7 @@ const deleteUsuario = async (id) => {
     const deletado = await prisma.usuario.delete({
       where: { id },
       include: {
-        prestador: { include: { documentos: true, locais: true } },
+        prestador: { include: { documento: true, locais: true } },
         contratante: true
       }
     })
@@ -78,7 +78,7 @@ const selectAllUsuario = async () => {
     const usuarios = await prisma.usuario.findMany({
       orderBy: { id: 'desc' },
       include: {
-        prestador: { include: { documentos: true, locais: true } },
+        prestador: { include: { documento: true, locais: true } },
         contratante: true
       }
     })
@@ -95,7 +95,7 @@ const selectByIdUsuario = async (id) => {
     const usuario = await prisma.usuario.findUnique({
       where: { id },
       include: {
-        prestador: { include: { documentos: true, locais: true } },
+        prestador: { include: { documento: true, locais: true } },
         contratante: true
       }
     })
@@ -113,7 +113,7 @@ const selectByEmail = async (email) => {
     const usuario = await prisma.usuario.findUnique({
       where: { email },
       include: {
-        prestador: { include: { documentos: true, locais: true } },
+        prestador: { include: { documento: true, locais: true } },
         contratante: true
       }
     })
@@ -131,7 +131,7 @@ const selectByTelefone = async (telefone) => {
     const usuario = await prisma.usuario.findUnique({
       where: { telefone },
       include: {
-        prestador: { include: { documentos: true, locais: true } },
+        prestador: { include: { documento: true, locais: true } },
         contratante: true
       }
     })
@@ -197,9 +197,9 @@ const updatePerfil = async (usuarioId, dados) => {
     if (usuarioAtualizado.tipo_conta === 'PRESTADOR') {
       const dadosPrestador = {}
 
-      if (dados.documentos) {
-        dadosPrestador.documentos = {
-          updateMany: dados.documentos
+      if (dados.documento) {
+        dadosPrestador.documento = {
+          updateMany: dados.documento
             .filter(d => d.action === 'update')
             .map(d => ({
               where: { id: d.id },
@@ -209,7 +209,7 @@ const updatePerfil = async (usuarioId, dados) => {
                 arquivo_url: d.arquivo_url || null
               }
             })),
-          create: dados.documentos
+          create: dados.documento
             .filter(d => d.action === 'create')
             .map(d => ({
               tipo_documento: d.tipo_documento,
@@ -217,7 +217,7 @@ const updatePerfil = async (usuarioId, dados) => {
               data_validade: d.data_validade ? new Date(d.data_validade) : null,
               arquivo_url: d.arquivo_url || null
             })),
-          deleteMany: dados.documentos
+          deleteMany: dados.documento
             .filter(d => d.action === 'delete')
             .map(d => ({ id: d.id }))
         }
@@ -245,7 +245,7 @@ const updatePerfil = async (usuarioId, dados) => {
     const usuarioCompleto = await prisma.usuario.findUnique({
       where: { id: usuarioId },
       include: {
-        prestador: { include: { documentos: true, locais: true } },
+        prestador: { include: { documento: true, locais: true } },
         contratante: { include: { localizacao: true } }
       }
     })
