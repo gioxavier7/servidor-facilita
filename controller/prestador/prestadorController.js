@@ -13,10 +13,10 @@ const jwt = require('jsonwebtoken');
 const cadastrarPrestador = async (req, res) => {
   try {
     const id_usuario = req.user.id; // do JWT
-    const { locais, documentos } = req.body;
+    const { localizacao, documentos } = req.body;
 
-    // validação básica de locais
-    if (!locais || !Array.isArray(locais) || locais.length === 0) {
+    // validação básica de localizacao
+    if (!localizacao || !Array.isArray(localizacao) || localizacao.length === 0) {
       return res.status(400).json({ message: 'É necessário informar pelo menos um local.' });
     }
 
@@ -33,7 +33,7 @@ const cadastrarPrestador = async (req, res) => {
 
     const novoPrestador = await prestadorDAO.insertPrestador({
       id_usuario,
-      locais,
+      localizacao,
       documentos: documentos || []
     });
 
@@ -102,9 +102,9 @@ const buscarPrestador = async (req, res) => {
 const atualizarPrestador = async (req, res) => {
   try {
     const id = parseInt(req.params.id)
-    const { locais, documentos } = req.body
+    const { localizacao, documentos } = req.body
 
-    const prestadorAtualizado = await prestadorDAO.updatePrestador(id, { locais, documentos })
+    const prestadorAtualizado = await prestadorDAO.updatePrestador(id, { localizacao, documentos })
 
     return res.status(200).json({
       message: 'Prestador atualizado com sucesso!',
