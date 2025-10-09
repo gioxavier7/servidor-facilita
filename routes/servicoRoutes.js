@@ -21,6 +21,13 @@ router.patch('/:id/finalizar', servicoController.finalizarServico)
 //listar meus serviços (apenas prestadores)
 router.get('/meus-servicos', servicoController.listarMeusServicos)
 
+//ROTAS PARA CONTRATANTES - HISTÓRICO DE PEDIDOS
+//listar pedidos do contratante (apenas contratantes)
+router.get('/contratante/pedidos', servicoController.listarPedidosContratante)
+
+//buscar pedido específico do contratante (apenas contratantes)
+router.get('/contratante/pedidos/:id', servicoController.buscarPedidoContratante)
+
 //rotas gerais (com verificação de permissões no controller)
 router.put('/:id', servicoController.atualizarServico)
 router.delete('/:id', servicoController.deletarServico)
