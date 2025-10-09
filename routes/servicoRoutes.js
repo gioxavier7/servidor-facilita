@@ -34,4 +34,13 @@ router.delete('/:id', servicoController.deletarServico)
 router.get('/', servicoController.listarServicos)
 router.get('/:id', servicoController.buscarServicoPorId)
 
+//confirmar conclusão de um serviço (apenas contratantes)
+router.patch('/:id/confirmar-conclusao', servicoController.confirmarConclusao);
+
+//pesquisar serviços por descrição (rota geral, disponível para todos os usuários autenticados)
+router.get('/pesquisar', servicoController.pesquisarPorDescricao);
+
+//filtrar serviços por categoria (rota geral, disponível para todos os usuários autenticados)
+router.get('/filtrar', servicoController.filtrarPorCategoria);
+
 module.exports = router

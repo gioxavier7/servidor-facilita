@@ -510,12 +510,12 @@ const listarPedidosContratante = async (req, res) => {
       })
     }
 
-    // Formata a resposta com os campos corretos do schema
+    //resposta com os campos corretos do schema
     const pedidosFormatados = servicos.map(servico => ({
       id: servico.id,
       descricao: servico.descricao,
       status: servico.status,
-      valor: servico.valor ? servico.valor.toNumber() : null, // Converte Decimal para Number
+      valor: servico.valor ? servico.valor.toNumber() : null, //decimal para number
       data_solicitacao: servico.data_solicitacao,
       data_conclusao: servico.data_conclusao,
       categoria: servico.categoria ? {
@@ -537,7 +537,7 @@ const listarPedidosContratante = async (req, res) => {
       } : null
     }));
 
-    // Informações de paginação
+    //paginação
     const totalPedidos = await servicoDAO.countServicosPorContratante(contratante.id);
     const totalPages = Math.ceil(totalPedidos / parseInt(limit));
 
@@ -564,7 +564,7 @@ const listarPedidosContratante = async (req, res) => {
 }
 
 /**
- * Buscar pedido específico do contratante
+ * buscar pedido específico do contratante
  */
 const buscarPedidoContratante = async (req, res) => {
   try {
@@ -577,7 +577,7 @@ const buscarPedidoContratante = async (req, res) => {
       })
     }
 
-    // Verifica se é contratante
+    //verifica se é contratante
     if (!req.user || req.user.tipo_conta !== 'CONTRATANTE') {
       return res.status(403).json({ 
         status_code: 403, 
@@ -594,7 +594,7 @@ const buscarPedidoContratante = async (req, res) => {
       })
     }
 
-    // Verifica se o pedido pertence ao contratante
+    //verifica se o pedido pertence ao contratante
     const contratante = await contratanteDAO.selectContratanteByUsuarioId(req.user.id);
     if (servico.id_contratante !== contratante.id) {
       return res.status(403).json({ 
@@ -603,7 +603,7 @@ const buscarPedidoContratante = async (req, res) => {
       })
     }
 
-    // Formata resposta com detalhes completos usando campos corretos
+    //resposta com detalhes completos usando campos corretos
     const pedidoDetalhado = {
       id: servico.id,
       descricao: servico.descricao,
@@ -647,6 +647,133 @@ const buscarPedidoContratante = async (req, res) => {
   }
 }
 
+/**
+ * Confirmar a conclusão de um serviço (contratante)
+ */
+const confirmarConclusao = async (req, res) => {
+  try {
+    // Verifica se o usuário é um contratante
+    if (!req.user || req.user.tipo_conta !== 'CONTRATANTE') {
+      return res.status(403).json({
+        status_code: 403,
+        message: 'Acesso permitido apenas para contratantes'
+      });
+    }
+
+    const { id } = req.params;
+
+    if (!id) {
+      return res.status(400).json({
+        status_code: 400,
+        message: 'ID do serviço é obrigatório'
+      });
+    }
+
+    const contratante = await contratanteDAO.selectContratanteByUsuarioId(req.user.id);
+
+    if (!contratante) {
+      return res.status(404).json({
+        status_code: 404,
+        message: 'Perfil de contratante não encontrado'
+      });
+    }
+
+    const servicoConcluido = await servicoDAO.confirmarConclusao(Number(id), contratante.id);
+
+    res.status(200).json({
+      status_code: 200,
+      message: 'Serviço concluído com sucesso',
+      data: servicoConcluido
+    });
+  } catch (error) {
+    console.error('Erro ao confirmar conclusão do serviço:', error);
+
+    if (error.message.includes('não autorizado') || error.message.includes('não está finalizado')) {
+      return res.status(400).json({
+        status_code: 400,
+        message: error.message
+      });
+    }
+
+    res.status(500).json({
+      status_code: 500,
+      message: 'Erro interno do servidor'
+    });
+  }
+};
+
+/**
+ * Pesquisar serviços por descrição
+ */
+const pesquisarPorDescricao = async (req, res) => {
+  try {
+    const { descricao } = req.query;
+
+    if (!descricao) {
+      return res.status(400).json({
+        status_code: 400,
+        message: 'O parâmetro "descricao" é obrigatório'
+      });
+    }
+
+    const servicos = await servicoDAO.pesquisarPorDescricao(descricao);
+
+    if (!servicos || servicos.length === 0) {
+      return res.status(404).json({
+        status_code: 404,
+        message: 'Nenhum serviço encontrado com a descrição fornecida'
+      });
+    }
+
+    res.status(200).json({
+      status_code: 200,
+      data: servicos
+    });
+  } catch (error) {
+    console.error('Erro ao pesquisar serviços por descrição:', error);
+    res.status(500).json({
+      status_code: 500,
+      message: 'Erro interno do servidor'
+    });
+  }
+};
+
+/**
+ * Filtrar serviços por categoria
+ */
+const filtrarPorCategoria = async (req, res) => {
+  try {
+    const { categoriaId } = req.query;
+
+    if (!categoriaId) {
+      return res.status(400).json({
+        status_code: 400,
+        message: 'O parâmetro "categoriaId" é obrigatório'
+      });
+    }
+
+    const servicos = await servicoDAO.filtrarPorCategoria(Number(categoriaId));
+
+    if (!servicos || servicos.length === 0) {
+      return res.status(404).json({
+        status_code: 404,
+        message: 'Nenhum serviço encontrado para a categoria fornecida'
+      });
+    }
+
+    res.status(200).json({
+      status_code: 200,
+      data: servicos
+    });
+  } catch (error) {
+    console.error('Erro ao filtrar serviços por categoria:', error);
+    res.status(500).json({
+      status_code: 500,
+      message: 'Erro interno do servidor'
+    });
+  }
+};
+
 module.exports = {
   cadastrarServico,
   atualizarServico,
@@ -658,5 +785,8 @@ module.exports = {
   finalizarServico,
   listarMeusServicos,
   listarPedidosContratante,
-  buscarPedidoContratante
+  buscarPedidoContratante,
+  confirmarConclusao,
+  pesquisarPorDescricao,
+  filtrarPorCategoria
 }

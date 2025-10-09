@@ -349,8 +349,6 @@ const selectServicosPorPrestador = async (prestadorId) => {
   }
 }
 
-// model/dao/servico.js
-
 /**
  * Buscar serviços do contratante com paginação
  */
@@ -375,7 +373,7 @@ const selectServicosPorContratante = async (idContratante, page = 1, limit = 10)
         }
       },
       orderBy: { 
-        data_solicitacao: 'desc' // Campo correto do schema
+        data_solicitacao: 'desc'
       },
       skip: skip,
       take: parseInt(limit)
@@ -413,7 +411,7 @@ const selectServicosPorContratanteEStatus = async (idContratante, status, page =
         }
       },
       orderBy: { 
-        data_solicitacao: 'desc' // Campo correto do schema
+        data_solicitacao: 'desc'
       },
       skip: skip,
       take: parseInt(limit)
@@ -438,6 +436,112 @@ const countServicosPorContratante = async (idContratante) => {
   }
 }
 
+/**
+ * Confirma a conclusão de um serviço (muda status para CONCLUIDO)
+ * @param {number} servicoId 
+ * @param {number} contratanteId 
+ * @returns {Object|false} - serviço concluído ou false
+ */
+const confirmarConclusao = async (servicoId, contratanteId) => {
+  try {
+    const servico = await prisma.servico.findUnique({
+      where: { id: servicoId }
+    });
+
+    if (!servico || servico.id_contratante !== contratanteId) {
+      throw new Error('Serviço não encontrado ou contratante não autorizado');
+    }
+
+    if (servico.status !== StatusServico.FINALIZADO) {
+      throw new Error('Serviço não está finalizado');
+    }
+
+    const servicoConcluido = await prisma.servico.update({
+      where: { id: servicoId },
+      data: {
+        status: StatusServico.CONCLUIDO,
+        data_confirmacao: new Date()
+      },
+      include: {
+        contratante: {
+          include: {
+            usuario: true
+          }
+        },
+        prestador: {
+          include: {
+            usuario: true
+          }
+        },
+        categoria: true,
+        localizacao: true
+      }
+    });
+
+    return servicoConcluido;
+  } catch (error) {
+    console.error('Erro ao confirmar conclusão do serviço:', error);
+    throw error;
+  }
+};
+
+/**
+ * Pesquisa serviços por descrição
+ * @param {string} descricao 
+ * @returns {Array|false} - lista de serviços encontrados ou false
+ */
+const pesquisarPorDescricao = async (descricao) => {
+  try {
+    const servicos = await prisma.servico.findMany({
+      where: {
+        descricao: {
+          contains: descricao,
+          mode: 'insensitive' // Busca case-insensitive
+        }
+      },
+      orderBy: { data_solicitacao: 'desc' },
+      include: {
+        contratante: true,
+        prestador: true,
+        categoria: true,
+        localizacao: true
+      }
+    });
+
+    return servicos;
+  } catch (error) {
+    console.error('Erro ao pesquisar serviços por descrição:', error);
+    return false;
+  }
+};
+
+/**
+ * Filtra serviços por categoria
+ * @param {number} categoriaId 
+ * @returns {Array|false} - lista de serviços filtrados ou false
+ */
+const filtrarPorCategoria = async (categoriaId) => {
+  try {
+    const servicos = await prisma.servico.findMany({
+      where: {
+        id_categoria: categoriaId
+      },
+      orderBy: { data_solicitacao: 'desc' },
+      include: {
+        contratante: true,
+        prestador: true,
+        categoria: true,
+        localizacao: true
+      }
+    });
+
+    return servicos;
+  } catch (error) {
+    console.error('Erro ao filtrar serviços por categoria:', error);
+    return false;
+  }
+};
+
 module.exports = {
   insertServico,
   selectAllServico,
@@ -451,5 +555,8 @@ module.exports = {
   selectServicosPorPrestador,
   selectServicosPorContratante,
   selectServicosPorContratanteEStatus,
-  countServicosPorContratante
+  countServicosPorContratante,
+  confirmarConclusao,
+  pesquisarPorDescricao,
+  filtrarPorCategoria
 }

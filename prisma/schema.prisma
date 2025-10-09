@@ -37,6 +37,7 @@ model Servico {
   status           StatusServico @default(PENDENTE)
   data_solicitacao DateTime      @default(now())
   data_conclusao   DateTime?
+  data_confirmacao DateTime?
   id_localizacao   Int?
   valor            Decimal?      @db.Decimal(10, 2)
   pagamentos       Pagamento[]
