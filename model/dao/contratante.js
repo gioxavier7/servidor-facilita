@@ -157,29 +157,20 @@ const selectByIdContratante = async (id) => {
   }
 }
 
-/**
- * Busca contratante pelo ID do usuário
- * @param {number} usuarioId 
- * @returns {Object|false} - contratante encontrado ou false
- */
-const selectContratanteByUsuarioId = async (usuarioId) => {
+const updateContratanteByUsuarioId = async (usuarioId, dados) => {
   try {
-    const contratante = await prisma.contratante.findFirst({
-      where: { 
-        id_usuario: usuarioId 
-      },
+    return await prisma.contratante.update({
+      where: { id_usuario: usuarioId },
+      data: dados,
       include: {
-        usuario: true,
         localizacao: true
       }
-    })
-
-    return contratante || false
+    });
   } catch (error) {
-    console.error("Erro ao buscar contratante por usuário ID:", error)
-    return false
+    console.error('Erro ao atualizar contratante:', error);
+    throw error;
   }
-}
+};
 
 module.exports = {
   insertContratante,
@@ -187,5 +178,5 @@ module.exports = {
   selectByIdContratante,
   updateContratante,
   deleteContratante,
-  selectContratanteByUsuarioId
+  updateContratanteByUsuarioId
 }
