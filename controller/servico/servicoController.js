@@ -13,7 +13,8 @@
 const servicoDAO = require('../../model/dao/servico')
 const contratanteDAO = require('../../model/dao/contratante')
 const prestadorDAO = require('../../model/dao/prestador')
-const { StatusServico } = require('@prisma/client')
+const categoriaDAO = require('../../model/dao/categoria')
+const { statusServico } = require('@prisma/client')
 
 /**
  * Cadastrar um novo serviço (APENAS CONTRATANTES)
@@ -54,7 +55,7 @@ const cadastrarServico = async (req, res) => {
       descricao,
       id_localizacao: id_localizacao || null,
       valor: valor || null,
-      status: StatusServico.PENDENTE
+      status: statusServico.PENDENTE
     })
 
     if (!novoServico) {
@@ -99,7 +100,7 @@ const atualizarServico = async (req, res) => {
     }
 
     // impede a atualizacao de serviços ja aceitos
-    if (servicoExistente.status !== StatusServico.PENDENTE) {
+    if (servicoExistente.status !== statusServico.PENDENTE) {
       return res.status(400).json({ 
         status_code: 400, 
         message: 'Não é possível atualizar um serviço que já foi aceito' 
@@ -150,7 +151,7 @@ const deletarServico = async (req, res) => {
       })
     }
 
-    if (servicoExistente.status !== StatusServico.PENDENTE) {
+    if (servicoExistente.status !== statusServico.PENDENTE) {
       return res.status(400).json({ 
         status_code: 400, 
         message: 'Não é possível excluir um serviço que já foi aceito' 
@@ -226,24 +227,32 @@ const listarServicos = async (req, res) => {
 }
 
 /**
- * buscar serviço por ID (COM VALIDAÇÃO DE ACESSO)
+ * buscar serviço por ID
  */
 const buscarServicoPorId = async (req, res) => {
   try {
     const { id } = req.params
 
-    if (!id) {
-      return res.status(400).json({ status_code: 400, message: 'ID do serviço é obrigatório' })
+    // Validação mais robusta
+    if (!id || isNaN(Number(id))) {
+      return res.status(400).json({ 
+        status_code: 400, 
+        message: 'ID do serviço é obrigatório e deve ser um número válido' 
+      })
     }
 
     const servico = await servicoDAO.selectByIdServico(Number(id))
 
     if (!servico) {
-      return res.status(404).json({ status_code: 404, message: 'Serviço não encontrado' })
+      return res.status(404).json({ 
+        status_code: 404, 
+        message: 'Serviço não encontrado' 
+      })
     }
 
     //apenas dono ou prestador atribuído podem ver
-    const isDono = servico.id_contratante === req.user.id;
+    const contratante = await contratanteDAO.selectContratanteByUsuarioId(req.user.id);
+    const isDono = servico.id_contratante === contratante?.id;
     const isPrestadorAtribuido = servico.id_prestador === req.user.id;
     
     if (!isDono && !isPrestadorAtribuido && req.user.tipo_conta !== 'ADMIN') {
@@ -255,8 +264,11 @@ const buscarServicoPorId = async (req, res) => {
 
     res.status(200).json({ status_code: 200, data: servico })
   } catch (error) {
-    console.error(error)
-    res.status(500).json({ status_code: 500, message: 'Erro interno do servidor' })
+    console.error('Erro ao buscar serviço por ID:', error)
+    res.status(500).json({ 
+      status_code: 500, 
+      message: 'Erro interno do servidor' 
+    })
   }
 }
 
@@ -483,10 +495,10 @@ const listarPedidosContratante = async (req, res) => {
     let servicos;
     if (status) {
       // Valida se o status é válido
-      if (!Object.values(StatusServico).includes(status)) {
+      if (!Object.values(statusServico).includes(status)) {
         return res.status(400).json({
           status_code: 400,
-          message: `Status inválido. Status válidos: ${Object.values(StatusServico).join(', ')}`
+          message: `Status inválido. Status válidos: ${Object.values(statusServico).join(', ')}`
         })
       }
       servicos = await servicoDAO.selectServicosPorContratanteEStatus(
@@ -774,6 +786,84 @@ const filtrarPorCategoria = async (req, res) => {
   }
 };
 
+/**
+ * criar serviço a partir de categoria pré-definida
+ */
+const criarServicoPorCategoria = async (req, res) => {
+  try {
+    // verifica se é contratante
+    if (!req.user || req.user.tipo_conta !== 'CONTRATANTE') {
+      return res.status(403).json({
+        status_code: 403,
+        message: 'Acesso permitido apenas para contratantes'
+      });
+    }
+
+    const { categoriaId } = req.params;
+    const { descricao_personalizada, id_localizacao, valor_personalizado } = req.body;
+
+    if (!categoriaId) {
+      return res.status(400).json({
+        status_code: 400,
+        message: 'ID da categoria é obrigatório'
+      });
+    }
+
+    // busca perfil do contratante
+    const contratante = await contratanteDAO.selectContratanteByUsuarioId(req.user.id);
+    if (!contratante) {
+      return res.status(404).json({
+        status_code: 404,
+        message: 'Perfil de contratante não encontrado'
+      });
+    }
+
+    // ✅ CORREÇÃO: Usa o DAO da categoria em vez do Prisma diretamente
+    const categoria = await categoriaDAO.selectByIdCategoria(Number(categoriaId));
+
+    if (!categoria) {
+      return res.status(404).json({
+        status_code: 404,
+        message: 'Categoria não encontrada'
+      });
+    }
+
+    // prepara dados do serviço
+    const dadosServico = {
+      id_contratante: contratante.id,
+      id_categoria: categoria.id,
+      descricao: descricao_personalizada || `Serviço de ${categoria.nome}`,
+      id_localizacao: id_localizacao || contratante.id_localizacao,
+      valor: valor_personalizado || categoria.preco_base
+    };
+
+    // cria o serviço
+    const novoServico = await servicoDAO.insertServico(dadosServico);
+
+    res.status(201).json({
+      status_code: 201,
+      message: `Serviço de ${categoria.nome} criado com sucesso`,
+      data: {
+        servico: novoServico,
+        categoria: {
+          nome: categoria.nome,
+          descricao: categoria.descricao,
+          icone: categoria.icone,
+          preco_base: categoria.preco_base,
+          tempo_medio: categoria.tempo_medio
+        }
+      }
+    });
+
+  } catch (error) {
+    console.error('Erro ao criar serviço from categoria:', error);
+    res.status(500).json({
+      status_code: 500,
+      message: 'Erro interno do servidor'
+    });
+  }
+};
+
 module.exports = {
   cadastrarServico,
   atualizarServico,
@@ -788,5 +878,6 @@ module.exports = {
   buscarPedidoContratante,
   confirmarConclusao,
   pesquisarPorDescricao,
-  filtrarPorCategoria
+  filtrarPorCategoria,
+  criarServicoPorCategoria
 }

@@ -7,7 +7,7 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model RecuperacaoSenha {
+model recuperacaoSenha {
   id        Int      @id @default(autoincrement())
   usuarioId Int
   codigo    String   @db.VarChar(6)
@@ -20,30 +20,34 @@ model RecuperacaoSenha {
   @@map("recuperacao_senha")
 }
 
-model Categoria {
-  id       Int       @id @default(autoincrement())
-  nome     String    @unique
-  servicos Servico[]
+model categoria {
+  id          Int       @id @default(autoincrement())
+  nome        String    @unique
+  descricao   String?   @db.Text
+  icone       String?   @db.VarChar(50)
+  preco_base  Decimal?  @db.Decimal(10, 2)
+  tempo_medio Int?
+  servicos    servico[]
 
   @@map("categoria")
 }
 
-model Servico {
+model servico {
   id               Int           @id @default(autoincrement())
   id_contratante   Int
   id_prestador     Int?
   id_categoria     Int?
   descricao        String
-  status           StatusServico @default(PENDENTE)
+  status           statusServico @default(PENDENTE)
   data_solicitacao DateTime      @default(now())
   data_conclusao   DateTime?
   data_confirmacao DateTime?
   id_localizacao   Int?
   valor            Decimal?      @db.Decimal(10, 2)
-  pagamentos       Pagamento[]
-  categoria        Categoria?    @relation(fields: [id_categoria], references: [id])
+  pagamentos       pagamento[]
+  categoria        categoria?    @relation(fields: [id_categoria], references: [id])
   contratante      contratante   @relation(fields: [id_contratante], references: [id])
-  localizacao      Localizacao?  @relation(fields: [id_localizacao], references: [id])
+  localizacao      localizacao?  @relation(fields: [id_localizacao], references: [id])
   prestador        prestador?    @relation(fields: [id_prestador], references: [id])
 
   @@index([id_categoria], map: "servico_id_categoria_fkey")
@@ -53,7 +57,7 @@ model Servico {
   @@map("servico")
 }
 
-model Avaliacao {
+model avaliacao {
   id             Int       @id @default(autoincrement())
   id_servico     Int       @unique(map: "id_servico")
   id_contratante Int
@@ -67,19 +71,19 @@ model Avaliacao {
   @@map("avaliacao")
 }
 
-model Pagamento {
+model pagamento {
   id             Int             @id @default(autoincrement())
   id_servico     Int
   id_contratante Int
   id_prestador   Int
   valor          Decimal         @db.Decimal(10, 2)
-  metodo         MetodoPagamento @default(CARTEIRA_PAGBANK)
-  status         StatusPagamento @default(PENDENTE)
+  metodo         metodoPagamento @default(CARTEIRA_PAGBANK)
+  status         statusPagamento @default(PENDENTE)
   id_pagbank     String?
   data_pagamento DateTime        @default(now())
   contratante    contratante     @relation(fields: [id_contratante], references: [id])
   prestador      prestador       @relation(fields: [id_prestador], references: [id])
-  servico        Servico         @relation(fields: [id_servico], references: [id])
+  servico        servico         @relation(fields: [id_servico], references: [id])
 
   @@index([id_contratante], map: "pagamento_id_contratante_fkey")
   @@index([id_prestador], map: "pagamento_id_prestador_fkey")
@@ -87,32 +91,32 @@ model Pagamento {
   @@map("pagamento")
 }
 
-model Carteira {
+model carteira {
   id            Int                 @id @default(autoincrement())
   id_usuario    Int                 @unique
   chave_pagbank String
   saldo         Decimal             @default(0.00) @db.Decimal(10, 2)
   data_criacao  DateTime            @default(now())
   usuario       usuario             @relation(fields: [id_usuario], references: [id])
-  transacoes    TransacaoCarteira[]
+  transacoes    transacaoCarteira[]
 
   @@map("carteira")
 }
 
-model TransacaoCarteira {
+model transacaoCarteira {
   id             Int           @id @default(autoincrement())
   id_carteira    Int
-  tipo           TipoTransacao
+  tipo           tipoTransacao
   valor          Decimal       @db.Decimal(10, 2)
   descricao      String?
   data_transacao DateTime      @default(now())
-  carteira       Carteira      @relation(fields: [id_carteira], references: [id])
+  carteira       carteira      @relation(fields: [id_carteira], references: [id])
 
   @@index([id_carteira], map: "transacao_carteira_id_carteira_fkey")
   @@map("transacao_carteira")
 }
 
-model Localizacao {
+model localizacao {
   id          Int           @id @default(autoincrement())
   logradouro  String
   numero      String?
@@ -122,7 +126,7 @@ model Localizacao {
   latitude    Decimal
   longitude   Decimal
   contratante contratante[]
-  servicos    Servico[]
+  servicos    servico[]
   prestador   prestador[]   @relation("localizacaotoprestador")
 
   @@map("localizacao")
@@ -134,10 +138,10 @@ model contratante {
   id_usuario     Int                      @unique(map: "Contratante_id_usuario_key")
   id_localizacao Int
   cpf            String?                  @unique(map: "Contratante_cpf_key")
-  localizacao    Localizacao              @relation(fields: [id_localizacao], references: [id], map: "Contratante_id_localizacao_fkey")
+  localizacao    localizacao              @relation(fields: [id_localizacao], references: [id], map: "Contratante_id_localizacao_fkey")
   usuario        usuario                  @relation(fields: [id_usuario], references: [id], map: "Contratante_id_usuario_fkey")
-  pagamento      Pagamento[]
-  servico        Servico[]
+  pagamento      pagamento[]
+  servico        servico[]
 
   @@index([id_localizacao], map: "Contratante_id_localizacao_fkey")
 }
@@ -158,10 +162,10 @@ model prestador {
   id          Int           @id @default(autoincrement())
   id_usuario  Int           @unique(map: "Prestador_id_usuario_key")
   documento   documento[]
-  pagamento   Pagamento[]
+  pagamento   pagamento[]
   usuario     usuario       @relation(fields: [id_usuario], references: [id], map: "Prestador_id_usuario_fkey")
-  servico     Servico[]
-  localizacao Localizacao[] @relation("localizacaotoprestador")
+  servico     servico[]
+  localizacao localizacao[] @relation("localizacaotoprestador")
 
   @@index([id_usuario], map: "Prestador_id_usuario_idx")
 }
@@ -174,33 +178,33 @@ model usuario {
   telefone     String              @unique(map: "Usuario_telefone_key")
   tipo_conta   usuario_tipo_conta?
   criado_em    DateTime            @default(now())
-  carteira     Carteira?
+  carteira     carteira?
   contratante  contratante?
   prestador    prestador?
-  recuperacoes RecuperacaoSenha[]
+  recuperacoes recuperacaoSenha[]
 }
 
-enum StatusServico {
+enum statusServico {
   PENDENTE
   EM_ANDAMENTO
   FINALIZADO
   CANCELADO
 }
 
-enum MetodoPagamento {
+enum metodoPagamento {
   CARTEIRA_PAGBANK
   PIX
   CARTAO
 }
 
-enum StatusPagamento {
+enum statusPagamento {
   PENDENTE
   PAGO
   FALHOU
   CANCELADO
 }
 
-enum TipoTransacao {
+enum tipoTransacao {
   ENTRADA
   SAIDA
 }
@@ -220,6 +224,7 @@ enum contratante_necessidade {
   DEF_AUDITIVA
   DEF_MOTORA
   DEF_INTELECTUAL
+  NENHUMA
 }
 
 enum usuario_tipo_conta {

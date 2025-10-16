@@ -5,7 +5,7 @@
  * versão: 1.1
  */
 
-const { PrismaClient, StatusServico } = require('@prisma/client')
+const { PrismaClient, statusServico } = require('@prisma/client')
 const prisma = new PrismaClient()
 
 /**
@@ -126,8 +126,13 @@ const selectAllServico = async () => {
  */
 const selectByIdServico = async (id) => {
   try {
+    // validação
+    if (!id || isNaN(id)) {
+      throw new Error('ID inválido')
+    }
+
     return await prisma.servico.findUnique({
-      where: { id },
+      where: { id: Number(id) },
       include: {
         categoria: true,
         localizacao: true,
@@ -136,7 +141,8 @@ const selectByIdServico = async (id) => {
             usuario: {
               select: {
                 nome: true,
-                email: true
+                email: true,
+                telefone: true
               }
             }
           }
@@ -146,7 +152,8 @@ const selectByIdServico = async (id) => {
             usuario: {
               select: {
                 nome: true,
-                email: true
+                email: true,
+                telefone: true
               }
             }
           }
@@ -158,7 +165,6 @@ const selectByIdServico = async (id) => {
     throw error;
   }
 }
-
 
 /**
  * retorna um serviço pelo ID incluindo apenas contratante e prestador
@@ -190,7 +196,7 @@ const selectServicosDisponiveis = async () => {
   try {
     const servicos = await prisma.servico.findMany({
       where: { 
-        status: StatusServico.PENDENTE
+        status: statusServico.PENDENTE
       },
       orderBy: { data_solicitacao: 'desc' },
       include: {
@@ -223,7 +229,7 @@ const aceitarServico = async (servicoId, prestadorId) => {
     const servicoEmAndamento = await prisma.servico.findFirst({
       where: {
         id_prestador: prestadorId,
-        status: StatusServico.EM_ANDAMENTO
+        status: statusServico.EM_ANDAMENTO
       }
     })
 
@@ -236,7 +242,7 @@ const aceitarServico = async (servicoId, prestadorId) => {
       where: { id: servicoId }
     })
 
-    if (!servico || servico.status !== StatusServico.PENDENTE) {
+    if (!servico || servico.status !== statusServico.PENDENTE) {
       throw new Error('Serviço não está mais disponível')
     }
 
@@ -245,7 +251,7 @@ const aceitarServico = async (servicoId, prestadorId) => {
       where: { id: servicoId },
       data: {
         id_prestador: prestadorId,
-        status: StatusServico.EM_ANDAMENTO
+        status: statusServico.EM_ANDAMENTO
       },
       include: {
         contratante: {
@@ -286,14 +292,14 @@ const finalizarServico = async (servicoId, prestadorId) => {
       throw new Error('Serviço não encontrado ou prestador não autorizado')
     }
 
-    if (servico.status !== StatusServico.EM_ANDAMENTO) {
+    if (servico.status !== statusServico.EM_ANDAMENTO) {
       throw new Error('Serviço não está em andamento')
     }
 
     const servicoFinalizado = await prisma.servico.update({
       where: { id: servicoId },
       data: {
-        status: StatusServico.FINALIZADO,
+        status: statusServico.FINALIZADO,
         data_conclusao: new Date()
       },
       include: {
@@ -452,14 +458,14 @@ const confirmarConclusao = async (servicoId, contratanteId) => {
       throw new Error('Serviço não encontrado ou contratante não autorizado');
     }
 
-    if (servico.status !== StatusServico.FINALIZADO) {
+    if (servico.status !== statusServico.FINALIZADO) {
       throw new Error('Serviço não está finalizado');
     }
 
     const servicoConcluido = await prisma.servico.update({
       where: { id: servicoId },
       data: {
-        status: StatusServico.CONCLUIDO,
+        status: statusServico.CONCLUIDO,
         data_confirmacao: new Date()
       },
       include: {
@@ -495,14 +501,31 @@ const pesquisarPorDescricao = async (descricao) => {
     const servicos = await prisma.servico.findMany({
       where: {
         descricao: {
-          contains: descricao,
-          mode: 'insensitive' // Busca case-insensitive
+          contains: descricao
         }
       },
       orderBy: { data_solicitacao: 'desc' },
       include: {
-        contratante: true,
-        prestador: true,
+        contratante: {
+          include: {
+            usuario: {
+              select: {
+                nome: true,
+                email: true
+              }
+            }
+          }
+        },
+        prestador: {
+          include: {
+            usuario: {
+              select: {
+                nome: true,
+                email: true
+              }
+            }
+          }
+        },
         categoria: true,
         localizacao: true
       }

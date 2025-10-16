@@ -90,17 +90,32 @@ const deletarCategoria = async (req, res) => {
 /**
  * Listar todas as categorias
  */
+/**
+ * Listar todas as categorias
+ */
 const listarCategorias = async (req, res) => {
   try {
     const categorias = await categoriaDAO.selectAllCategoria()
-    if (!categorias) {
-      return res.status(404).json({ status_code: 404, message: 'Nenhuma categoria encontrada' })
-    }
+    
+    const categoriasFormatadas = categorias.map(cat => ({
+      id: cat.id,
+      nome: cat.nome,
+      descricao: cat.descricao,
+      icone: cat.icone,
+      preco_base: cat.preco_base,
+      tempo_medio: cat.tempo_medio
+    }))
 
-    res.status(200).json({ status_code: 200, data: categorias })
+    res.status(200).json({
+      status_code: 200,
+      data: categoriasFormatadas
+    })
   } catch (error) {
-    console.error(error)
-    res.status(500).json({ status_code: 500, message: 'Erro interno do servidor' })
+    console.error('Erro ao listar categorias:', error)
+    res.status(500).json({
+      status_code: 500,
+      message: 'Erro interno do servidor'
+    })
   }
 }
 
