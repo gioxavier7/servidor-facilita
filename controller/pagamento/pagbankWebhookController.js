@@ -1,6 +1,7 @@
 const pagamentoDAO = require('../../model/dao/pagamento');
 const carteiraDAO = require('../../model/dao/carteira');
 const transacaoDAO = require('../../model/dao/transacaoCarteira');
+const notificacaoDAO = require('../../model/dao/notificacaoDAO'); // ✅ NOVO
 
 const receberNotificacao = async function(req, res){
     try {
@@ -14,7 +15,7 @@ const receberNotificacao = async function(req, res){
             return res.status(404).json({ message: 'Pagamento não encontrado' });
         }
 
-        //mapear status do PagBank para status interno
+        // mapear status do PagBank para status interno
         const statusMap = { 
             PAID: 'PAGO', 
             PENDING: 'PENDENTE', 
@@ -26,6 +27,46 @@ const receberNotificacao = async function(req, res){
 
         await pagamentoDAO.updateStatusPagamento(pagamento.id, novoStatus);
         console.log(`Pagamento #${pagamento.id} atualizado para status: ${novoStatus}`);
+
+        if (novoStatus === 'PAGO') {
+            // Notificar PRESTADOR - Pagamento recebido
+            await notificacaoDAO.criarNotificacao({
+                id_usuario: pagamento.prestador.id_usuario,
+                id_servico: pagamento.id_servico,
+                tipo: 'pagamento',
+                titulo: 'Pagamento Recebido! 💸',
+                mensagem: `Você recebeu R$ ${(pagamento.valor / 100).toFixed(2)} pelo serviço #${pagamento.id_servico}. Valor creditado na sua carteira.`
+            });
+
+            // Notificar CONTRATANTE - Pagamento confirmado
+            await notificacaoDAO.criarNotificacao({
+                id_usuario: pagamento.contratante.id_usuario,
+                id_servico: pagamento.id_servico,
+                tipo: 'pagamento',
+                titulo: 'Pagamento Confirmado! ✅',
+                mensagem: `Seu pagamento de R$ ${(pagamento.valor / 100).toFixed(2)} foi confirmado com sucesso.`
+            });
+
+        } else if (novoStatus === 'CANCELADO' || novoStatus === 'FALHOU') {
+            // Notificar CONTRATANTE - Pagamento falhou
+            await notificacaoDAO.criarNotificacao({
+                id_usuario: pagamento.contratante.id_usuario,
+                id_servico: pagamento.id_servico,
+                tipo: 'pagamento',
+                titulo: 'Pagamento Não Processado ⚠️',
+                mensagem: `Seu pagamento de R$ ${(pagamento.valor / 100).toFixed(2)} não foi processado. Status: ${novoStatus}.`
+            });
+
+        } else if (novoStatus === 'PENDENTE') {
+            // Notificar CONTRATANTE - Pagamento pendente
+            await notificacaoDAO.criarNotificacao({
+                id_usuario: pagamento.contratante.id_usuario,
+                id_servico: pagamento.id_servico,
+                tipo: 'pagamento',
+                titulo: 'Pagamento Pendente ⏳',
+                mensagem: `Aguardando confirmação do pagamento de R$ ${(pagamento.valor / 100).toFixed(2)}.`
+            });
+        }
 
         // atualizar saldo e registrar transação se pago
         if (novoStatus === 'PAGO') {

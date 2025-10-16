@@ -15,6 +15,7 @@ const contratanteDAO = require('../../model/dao/contratante')
 const prestadorDAO = require('../../model/dao/prestador')
 const categoriaDAO = require('../../model/dao/categoria')
 const { statusServico } = require('@prisma/client')
+const notificacaoDAO = require('../../model/dao/notificacaoDAO')
 
 /**
  * Cadastrar um novo serviço (APENAS CONTRATANTES)
@@ -338,7 +339,15 @@ const aceitarServico = async (req, res) => {
       })
     }
 
-    const servicoAceito = await servicoDAO.aceitarServico(Number(id), prestador.id) //id do prestador
+    const servicoAceito = await servicoDAO.aceitarServico(Number(id), prestador.id)
+
+    await notificacaoDAO.criarNotificacao({
+      id_usuario: servicoAceito.id_contratante,
+      id_servico: servicoAceito.id,
+      tipo: 'servico',
+      titulo: 'Serviço Aceito! 🎉',
+      mensagem: `O prestador ${prestador.usuario.nome} aceitou seu serviço "${servicoAceito.descricao.substring(0, 50)}..."`
+    })
 
     res.status(200).json({ 
       status_code: 200, 
@@ -399,6 +408,14 @@ const finalizarServico = async (req, res) => {
     }
 
     const servicoFinalizado = await servicoDAO.finalizarServico(Number(id), prestador.id)
+
+    await notificacaoDAO.criarNotificacao({
+      id_usuario: servicoFinalizado.id_contratante,
+      id_servico: servicoFinalizado.id,
+      tipo: 'servico', 
+      titulo: 'Serviço Finalizado! ✅',
+      mensagem: `O prestador ${prestador.usuario.nome} finalizou o serviço. Aguarde sua confirmação.`
+    })
 
     res.status(200).json({ 
       status_code: 200, 
@@ -690,7 +707,15 @@ const confirmarConclusao = async (req, res) => {
       });
     }
 
-    const servicoConcluido = await servicoDAO.confirmarConclusao(Number(id), contratante.id);
+    const servicoConcluido = await servicoDAO.confirmarConclusao(Number(id), contratante.id)
+
+    await notificacaoDAO.criarNotificacao({
+      id_usuario: servicoConcluido.id_prestador,
+      id_servico: servicoConcluido.id,
+      tipo: 'servico',
+      titulo: 'Serviço Confirmado! 🎊',
+      mensagem: `O contratante confirmou a conclusão do serviço "${servicoConcluido.descricao.substring(0, 50)}...". Pagamento liberado!`
+    })
 
     res.status(200).json({
       status_code: 200,
