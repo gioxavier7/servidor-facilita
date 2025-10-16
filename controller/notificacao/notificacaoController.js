@@ -1,4 +1,4 @@
-const notificacaoDAO = require('../../model/dao/notificacaoDAO')
+const notificacaoDAO = require('../../model/dao/notificacao')
 
 /**
  * listar notificações do usuário
@@ -14,6 +14,8 @@ const listarNotificacoes = async (req, res) => {
     )
 
     const naoLidas = await notificacaoDAO.contarNaoLidas(id_usuario)
+
+    console.log("CONSOLE DE NOTIFC",notificacoes)
 
     res.status(200).json({
       status_code: 200,

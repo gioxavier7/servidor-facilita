@@ -1,7 +1,7 @@
 const pagamentoDAO = require('../../model/dao/pagamento');
 const carteiraDAO = require('../../model/dao/carteira');
 const transacaoDAO = require('../../model/dao/transacaoCarteira');
-const notificacaoDAO = require('../../model/dao/notificacaoDAO'); // ✅ NOVO
+const notificacaoDAO = require('../../model/dao/notificacao')
 
 const receberNotificacao = async function(req, res){
     try {

@@ -45,7 +45,7 @@ model servico {
   id_localizacao   Int?
   valor            Decimal?      @db.Decimal(10, 2)
   pagamentos       pagamento[]
-  notificacoes     Notificacao[]
+  notificacoes     notificacao[]
   categoria        categoria?    @relation(fields: [id_categoria], references: [id])
   contratante      contratante   @relation(fields: [id_contratante], references: [id])
   localizacao      localizacao?  @relation(fields: [id_localizacao], references: [id])
@@ -58,8 +58,7 @@ model servico {
   @@map("servico")
 }
 
-// ✅ NOVO MODELO DE NOTIFICAÇÃO
-model Notificacao {
+model notificacao {
   id           Int      @id @default(autoincrement())
   id_usuario   Int
   id_servico   Int?
@@ -200,7 +199,7 @@ model usuario {
   contratante  contratante?
   prestador    prestador?
   recuperacoes recuperacaoSenha[]
-  notificacoes Notificacao[]
+  notificacoes notificacao[]
 }
 
 enum statusServico {

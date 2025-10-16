@@ -15,7 +15,7 @@ const contratanteDAO = require('../../model/dao/contratante')
 const prestadorDAO = require('../../model/dao/prestador')
 const categoriaDAO = require('../../model/dao/categoria')
 const { statusServico } = require('@prisma/client')
-const notificacaoDAO = require('../../model/dao/notificacaoDAO')
+const notificacaoDAO = require('../../model/dao/notificacao')
 
 /**
  * Cadastrar um novo serviço (APENAS CONTRATANTES)
@@ -308,12 +308,8 @@ const listarServicosDisponiveis = async (req, res) => {
   }
 }
 
-/**
- * aceitar um serviço (prestador)
- */
 const aceitarServico = async (req, res) => {
   try {
-    // verifica se o usuário é um prestador autenticado
     if (!req.user || req.user.tipo_conta !== 'PRESTADOR') {
       return res.status(403).json({ 
         status_code: 403, 
@@ -341,13 +337,37 @@ const aceitarServico = async (req, res) => {
 
     const servicoAceito = await servicoDAO.aceitarServico(Number(id), prestador.id)
 
-    await notificacaoDAO.criarNotificacao({
-      id_usuario: servicoAceito.id_contratante,
-      id_servico: servicoAceito.id,
-      tipo: 'servico',
-      titulo: 'Serviço Aceito! 🎉',
-      mensagem: `O prestador ${prestador.usuario.nome} aceitou seu serviço "${servicoAceito.descricao.substring(0, 50)}..."`
-    })
+    // DEBUG: Verificar a estrutura completa
+    console.log('🔍 ESTRUTURA COMPLETA DO SERVIÇO ACEITO:')
+    console.log('servicoAceito:', JSON.stringify(servicoAceito, null, 2))
+    console.log('servicoAceito.contratante:', servicoAceito.contratante)
+    console.log('servicoAceito.contratante.id_usuario:', servicoAceito.contratante?.id_usuario)
+    console.log('servicoAceito.id_contratante:', servicoAceito.id_contratante)
+
+    try {
+      // SOLUÇÃO ALTERNATIVA: Buscar o contratante completo se necessário
+      let id_usuario_contratante;
+      
+      if (servicoAceito.contratante && servicoAceito.contratante.id_usuario) {
+        id_usuario_contratante = servicoAceito.contratante.id_usuario;
+      } else {
+        // Se não tiver a relação, buscar o contratante pelo ID
+        const contratanteCompleto = await contratanteDAO.selectContratanteById(servicoAceito.id_contratante);
+        id_usuario_contratante = contratanteCompleto.id_usuario;
+        console.log('🔄 Buscou contratante via DAO:', id_usuario_contratante)
+      }
+
+      await notificacaoDAO.criarNotificacao({
+        id_usuario: id_usuario_contratante,
+        id_servico: servicoAceito.id,
+        tipo: 'servico',
+        titulo: 'Serviço Aceito! 🎉',
+        mensagem: `O prestador ${prestador.usuario.nome} aceitou seu serviço "${servicoAceito.descricao.substring(0, 50)}..."`
+      })
+      console.log('✅ Notificação criada com sucesso para usuário:', id_usuario_contratante)
+    } catch (notificacaoError) {
+      console.error('❌ Erro ao criar notificação:', notificacaoError)
+    }
 
     res.status(200).json({ 
       status_code: 200, 
@@ -380,9 +400,11 @@ const aceitarServico = async (req, res) => {
 /**
  * finaliza um serviço (prestador)
  */
+/**
+ * finaliza um serviço (prestador)
+ */
 const finalizarServico = async (req, res) => {
   try {
-    // verifica se o usuário é um prestador autenticado
     if (!req.user || req.user.tipo_conta !== 'PRESTADOR') {
       return res.status(403).json({ 
         status_code: 403, 
@@ -398,6 +420,7 @@ const finalizarServico = async (req, res) => {
         message: 'ID do serviço é obrigatório' 
       })
     }
+    
     const prestador = await prestadorDAO.selectPrestadorByUsuarioId(req.user.id)
     
     if (!prestador) {
@@ -409,13 +432,35 @@ const finalizarServico = async (req, res) => {
 
     const servicoFinalizado = await servicoDAO.finalizarServico(Number(id), prestador.id)
 
+    // ✅ CORREÇÃO: Buscar o id_usuario do contratante corretamente
+    let id_usuario_contratante;
+    
+    // Caso 1: Já tem a estrutura completa
+    if (servicoFinalizado.contratante && servicoFinalizado.contratante.usuario) {
+      id_usuario_contratante = servicoFinalizado.contratante.usuario.id;
+    }
+    // Caso 2: Tem apenas o id_usuario no contratante
+    else if (servicoFinalizado.contratante && servicoFinalizado.contratante.id_usuario) {
+      id_usuario_contratante = servicoFinalizado.contratante.id_usuario;
+    }
+    // Caso 3: Precisa buscar o contratante completo
+    else {
+      const contratanteCompleto = await contratanteDAO.selectContratanteById(servicoFinalizado.id_contratante);
+      id_usuario_contratante = contratanteCompleto.id_usuario;
+      console.log('🔄 Buscou contratante via DAO para finalização:', id_usuario_contratante)
+    }
+
+    console.log('👤 ID usuário contratante para notificação de finalização:', id_usuario_contratante)
+
     await notificacaoDAO.criarNotificacao({
-      id_usuario: servicoFinalizado.id_contratante,
+      id_usuario: id_usuario_contratante, // ← AGORA CORRETO!
       id_servico: servicoFinalizado.id,
-      tipo: 'servico', 
+      tipo: 'servico_finalizado', // Mudei para ser mais específico
       titulo: 'Serviço Finalizado! ✅',
-      mensagem: `O prestador ${prestador.usuario.nome} finalizou o serviço. Aguarde sua confirmação.`
+      mensagem: `O prestador ${prestador.usuario.nome} finalizou o serviço "${servicoFinalizado.descricao.substring(0, 30)}...". Aguarde sua confirmação.`
     })
+
+    console.log('✅ Notificação de finalização criada com sucesso')
 
     res.status(200).json({ 
       status_code: 200, 
@@ -679,9 +724,11 @@ const buscarPedidoContratante = async (req, res) => {
 /**
  * Confirmar a conclusão de um serviço (contratante)
  */
+/**
+ * Confirmar a conclusão de um serviço (contratante)
+ */
 const confirmarConclusao = async (req, res) => {
   try {
-    // Verifica se o usuário é um contratante
     if (!req.user || req.user.tipo_conta !== 'CONTRATANTE') {
       return res.status(403).json({
         status_code: 403,
@@ -709,13 +756,32 @@ const confirmarConclusao = async (req, res) => {
 
     const servicoConcluido = await servicoDAO.confirmarConclusao(Number(id), contratante.id)
 
+    // ✅ CORREÇÃO: Buscar o id_usuario do prestador corretamente
+    let id_usuario_prestador;
+    
+    if (servicoConcluido.prestador && servicoConcluido.prestador.usuario) {
+      id_usuario_prestador = servicoConcluido.prestador.usuario.id;
+    }
+    else if (servicoConcluido.prestador && servicoConcluido.prestador.id_usuario) {
+      id_usuario_prestador = servicoConcluido.prestador.id_usuario;
+    }
+    else {
+      const prestadorCompleto = await prestadorDAO.selectPrestadorById(servicoConcluido.id_prestador);
+      id_usuario_prestador = prestadorCompleto.id_usuario;
+      console.log('🔄 Buscou prestador via DAO para confirmação:', id_usuario_prestador)
+    }
+
+    console.log('👤 ID usuário prestador para notificação de confirmação:', id_usuario_prestador)
+
     await notificacaoDAO.criarNotificacao({
-      id_usuario: servicoConcluido.id_prestador,
+      id_usuario: id_usuario_prestador, // ← AGORA CORRETO!
       id_servico: servicoConcluido.id,
-      tipo: 'servico',
+      tipo: 'servico_confirmado',
       titulo: 'Serviço Confirmado! 🎊',
-      mensagem: `O contratante confirmou a conclusão do serviço "${servicoConcluido.descricao.substring(0, 50)}...". Pagamento liberado!`
+      mensagem: `O contratante confirmou a conclusão do serviço "${servicoConcluido.descricao.substring(0, 30)}...". Pagamento liberado!`
     })
+
+    console.log('✅ Notificação de confirmação criada com sucesso')
 
     res.status(200).json({
       status_code: 200,
@@ -835,7 +901,7 @@ const criarServicoPorCategoria = async (req, res) => {
     }
 
     // busca perfil do contratante
-    const contratante = await contratanteDAO.selectContratanteByUsuarioId(req.user.id);
+    const contratante = await contratanteDAO.selectContratanteByUsuarioId(req.user.id)
     if (!contratante) {
       return res.status(404).json({
         status_code: 404,
@@ -843,7 +909,6 @@ const criarServicoPorCategoria = async (req, res) => {
       });
     }
 
-    // ✅ CORREÇÃO: Usa o DAO da categoria em vez do Prisma diretamente
     const categoria = await categoriaDAO.selectByIdCategoria(Number(categoriaId));
 
     if (!categoria) {

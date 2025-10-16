@@ -1,7 +1,7 @@
 const pagamentoDAO = require('../../model/dao/pagamento');
 const servicoDAO = require('../../model/dao/servico');
 const axios = require('axios');
-const notificacaoDAO = require('../../model/dao/notificacaoDAO')
+const notificacaoDAO = require('../../model/dao/notificacao')
 
 /**
  * Cadastrar um pagamento simples (sem PagBank, local/teste)

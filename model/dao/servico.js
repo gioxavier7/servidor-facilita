@@ -26,7 +26,11 @@ const insertServico = async (servico) => {
         status: servico.status
       },
       include: {
-        contratante: true,
+        contratante: {
+          include: {
+            usuario: true // ← ADICIONE ESTA LINHA
+          }
+        },
         prestador: true,
         categoria: true,
         localizacao: true,
@@ -58,7 +62,11 @@ const updateServico = async (servico) => {
         status: servico.status
       },
       include: {
-        contratante: true,
+        contratante: {
+          include: {
+            usuario: true
+          }
+        },
         prestador: true,
         categoria: true,
         localizacao: true,
@@ -72,7 +80,6 @@ const updateServico = async (servico) => {
     return false
   }
 }
-
 /**
  * deleta um serviço pelo ID
  * @param {number} id
