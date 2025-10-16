@@ -324,59 +324,199 @@ const listarUsuarios = async (req, res) => {
 // ================= GET USUARIO POR ID =================
 const buscarUsuario = async (req, res) => {
   try {
-    const { id } = req.params
-    const usuario = await usuarioDAO.selectByIdUsuario(parseInt(id))
+    const { id } = req.params;
+
+    if (!id) {
+      return res.status(400).json({ 
+        status_code: 400, 
+        message: 'ID do usuário é obrigatório' 
+      });
+    }
+
+    const usuario = await usuarioDAO.selectByIdUsuario(Number(id));
 
     if (!usuario) {
-      return res.status(404).json({ error: 'Usuário não encontrado.' })
+      return res.status(404).json({ 
+        status_code: 404, 
+        message: 'Usuário não encontrado' 
+      });
     }
 
-    // só permite ver o próprio usuário
-    if (req.usuario.id !== usuario.id) {
-      return res.status(403).json({ error: 'Acesso negado.' })
+    if (req.user.id !== usuario.id) {
+      return res.status(403).json({ 
+        status_code: 403, 
+        message: 'Acesso negado' 
+      });
     }
 
-    return res.status(200).json(usuario)
+    const usuarioFormatado = {
+      id: usuario.id,
+      nome: usuario.nome,
+      email: usuario.email,
+      telefone: usuario.telefone,
+      tipo_conta: usuario.tipo_conta,
+      criado_em: usuario.criado_em
+    };
+
+    res.status(200).json({
+      status_code: 200,
+      data: usuarioFormatado
+    });
+
   } catch (error) {
-    console.error('Erro ao buscar usuario:', error)
-    return res.status(500).json({ error: 'Erro interno ao buscar usuário.' })
+    console.error('Erro ao buscar usuário:', error);
+    res.status(500).json({
+      status_code: 500,
+      message: 'Erro interno do servidor'
+    });
   }
-}
+};
 
 // ================= ATUALIZAR USUARIO =================
-const atualizarUsuario = async (req, res) => {
+const atualizarPerfil = async (req, res) => {
   try {
-    const { id } = req.params
-
-    // só permite atualizar o próprio usuário
-    if (req.usuario.id !== parseInt(id)) {
-      return res.status(403).json({ error: 'Acesso negado.' })
+    if (req.headers['content-type'] !== 'application/json') {
+      return res.status(415).json({ 
+        status_code: 415, 
+        message: 'Content-type inválido. Use application/json' 
+      });
     }
 
-    const data = req.body
-    if (data.senha_hash) {
-      data.senha_hash = await bcrypt.hash(data.senha_hash, 10)
+    const userId = req.user.id;
+    const { 
+      //dados usuário
+      nome, 
+      email, 
+      telefone, 
+      senha_atual, 
+      nova_senha,
+      
+      //dados do tipo de conta
+      necessidade,
+      id_localizacao,
+      cpf,
+      locais,
+      documentos
+    } = req.body;
+
+    // busca usuário atual
+    const usuarioAtual = await usuarioDAO.selectByIdUsuario(userId);
+    if (!usuarioAtual) {
+      return res.status(404).json({
+        status_code: 404,
+        message: 'Usuário não encontrado'
+      });
     }
 
-    const usuarioAtualizado = await usuarioDAO.updateUsuario(
-      parseInt(id),
-      data
-    )
-    if (!usuarioAtualizado) {
-      return res.status(404).json({ error: 'Usuário não encontrado.' })
+    const dadosAtualizacao = {};
+
+    // 1.atualização de dados básicos do usuário
+    if (nome) dadosAtualizacao.nome = nome;
+    if (email) dadosAtualizacao.email = email;
+    if (telefone) dadosAtualizacao.telefone = telefone;
+
+    // 2.atualização de senha
+    if (nova_senha) {
+      if (!senha_atual) {
+        return res.status(400).json({
+          status_code: 400,
+          message: 'Senha atual é obrigatória para alterar a senha'
+        });
+      }
+      
+      //verifica senha atual
+      const senhaValida = await bcrypt.compare(senha_atual, usuarioAtual.senha_hash);
+      if (!senhaValida) {
+        return res.status(400).json({
+          status_code: 400,
+          message: 'Senha atual incorreta'
+        });
+      }
+
+      //hash da nova senha
+      dadosAtualizacao.senha_hash = await bcrypt.hash(nova_senha, 12);
     }
 
-    return res.status(200).json({
-      message: 'Usuário atualizado com sucesso!',
-      usuario: usuarioAtualizado,
-    })
+    // 3.atualização  por tipo de conta
+    let perfilEspecifico = null;
+
+    if (usuarioAtual.tipo_conta === 'CONTRATANTE') {
+      perfilEspecifico = await atualizarPerfilContratante(userId, {
+        necessidade,
+        id_localizacao,
+        cpf
+      });
+    } else if (usuarioAtual.tipo_conta === 'PRESTADOR') {
+      perfilEspecifico = await atualizarPerfilPrestador(userId, {
+        locais,
+        documentos
+      });
+    }
+
+    // 4.atualiza dados do usuário
+    const usuarioAtualizado = await usuarioDAO.updateUsuario(userId, dadosAtualizacao);
+
+    res.status(200).json({
+      status_code: 200,
+      message: 'Perfil atualizado com sucesso',
+      data: {
+        usuario: usuarioAtualizado,
+        perfil_especifico: perfilEspecifico
+      }
+    });
+
   } catch (error) {
-    console.error('Erro ao atualizar usuario:', error)
-    return res
-      .status(500)
-      .json({ error: 'Erro interno ao atualizar usuário.' })
+    console.error('Erro ao atualizar perfil:', error);
+    
+    if (error.message.includes('Email já existe') || error.message.includes('Telefone já existe')) {
+      return res.status(400).json({
+        status_code: 400,
+        message: error.message
+      });
+    }
+
+    res.status(500).json({
+      status_code: 500,
+      message: 'Erro interno do servidor'
+    });
   }
-}
+};
+
+/**
+ * atualizar perfil do contratante
+ */
+const atualizarPerfilContratante = async (userId, dados) => {
+  const { necessidade, id_localizacao, cpf } = dados;
+  
+  const dadosContratante = {};
+  if (necessidade) dadosContratante.necessidade = necessidade;
+  if (id_localizacao) dadosContratante.id_localizacao = id_localizacao;
+  if (cpf) dadosContratante.cpf = cpf;
+
+  if (Object.keys(dadosContratante).length > 0) {
+    return await contratanteDAO.updateContratanteByUsuarioId(userId, dadosContratante);
+  }
+  
+  return null;
+};
+
+/**
+ * atualizar perfil do prestador
+ */
+const atualizarPerfilPrestador = async (userId, dados) => {
+  const { locais, documentos } = dados;
+  
+  const resultado = {};
+  
+  //atualizar locais do prestador
+  if (locais && Array.isArray(locais)) {
+    resultado.locais = await prestadorDAO.atualizarLocaisPrestador(userId, locais);
+  }
+  
+  //atualizar documentos do prestador if (documentos && Array.isArray(documentos)) { resultado.documentos = await prestadorDAO.atualizarDocumentosPrestador(userId, documentos); }
+  
+  return Object.keys(resultado).length > 0 ? resultado : null;
+};
 
 // ================= DELETAR USUARIO =================
 const deletarUsuario = async (req, res) => {
@@ -397,34 +537,6 @@ const deletarUsuario = async (req, res) => {
   } catch (error) {
     console.error('Erro ao deletar usuario:', error)
     return res.status(500).json({ error: 'Erro interno ao deletar usuário.' })
-  }
-}
-
-// ================= ATUALIZAR PERFIL =================
-const atualizarPerfil = async (req, res) => {
-  try {
-    const usuarioId = parseInt(req.params.id)
-
-    // só permite atualizar o próprio usuário
-    if (req.usuario.id !== usuarioId) {
-      return res.status(403).json({ error: 'Acesso negado.' })
-    }
-
-    const dados = req.body
-    if (dados.senha_hash) {
-      dados.senha_hash = await bcrypt.hash(dados.senha_hash, 10)
-    }
-
-    const resultado = await usuarioDAO.updatePerfil(usuarioId, dados)
-
-    if (resultado.error) {
-      return res.status(400).json({ error: resultado.error })
-    }
-
-    return res.status(200).json(resultado)
-  } catch (error) {
-    console.error('Erro ao atualizar perfil:', error)
-    return res.status(500).json({ error: 'Erro interno ao atualizar perfil.' })
   }
 }
 
@@ -626,15 +738,63 @@ const redefinirSenha = async (req, res) => {
   }
 };
 
+/**
+ * Buscar perfil completo do usuário autenticado
+ */
+const buscarPerfilUsuario = async (req, res) => {
+  try {
+    const userId = req.user.id; // ← Pega do token, não precisa de params
+
+    const usuario = await usuarioDAO.selectByIdUsuario(userId);
+    if (!usuario) {
+      return res.status(404).json({
+        status_code: 404,
+        message: 'Usuário não encontrado'
+      });
+    }
+
+    let perfilEspecifico = null;
+
+    // Busca dados específicos do tipo de conta
+    if (usuario.tipo_conta === 'CONTRATANTE') {
+      perfilEspecifico = await contratanteDAO.selectContratanteByUsuarioId(userId);
+    } else if (usuario.tipo_conta === 'PRESTADOR') {
+      perfilEspecifico = await prestadorDAO.selectPrestadorCompletoByUsuarioId(userId);
+    }
+
+    res.status(200).json({
+      status_code: 200,
+      data: {
+        usuario: {
+          id: usuario.id,
+          nome: usuario.nome,
+          email: usuario.email,
+          telefone: usuario.telefone,
+          tipo_conta: usuario.tipo_conta,
+          criado_em: usuario.criado_em
+        },
+        perfil_especifico: perfilEspecifico
+      }
+    });
+
+  } catch (error) {
+    console.error('Erro ao buscar perfil:', error);
+    res.status(500).json({
+      status_code: 500,
+      message: 'Erro interno do servidor'
+    });
+  }
+};
+
 module.exports = {
   cadastrarUsuario,
   login,
   listarUsuarios,
   buscarUsuario,
-  atualizarUsuario,
   deletarUsuario,
-  atualizarPerfil,
   solicitarRecuperacaoSenha,
   verificarCodigo,
   redefinirSenha,
+  buscarPerfilUsuario,
+  atualizarPerfil
 }

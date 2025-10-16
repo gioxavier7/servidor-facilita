@@ -163,7 +163,14 @@ const updateContratanteByUsuarioId = async (usuarioId, dados) => {
       where: { id_usuario: usuarioId },
       data: dados,
       include: {
-        localizacao: true
+        localizacao: true,
+        usuario: {
+          select: {
+            nome: true,
+            email: true,
+            telefone: true
+          }
+        }
       }
     });
   } catch (error) {

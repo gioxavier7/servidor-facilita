@@ -60,7 +60,7 @@ const insertPrestador = async (prestador) => {
         },
         include: {
           usuario: true,
-          localizacao: true,  // CORRETO - mesmo nome do campo no schema
+          localizacao: true,
           documento: true
         }
       });
@@ -177,11 +177,129 @@ const selectPrestadorByUsuarioId = async (usuarioId) => {
   }
 }
 
+/**
+ * atualizar locais do prestador
+ */
+const atualizarLocaisPrestador = async (usuarioId, locaisIds) => {
+  try {
+    //busca o prestador
+    const prestador = await prisma.prestador.findUnique({
+      where: { id_usuario: usuarioId }
+    });
+
+    if (!prestador) {
+      throw new Error('Prestador não encontrado');
+    }
+
+    // atualiza os locais
+    await prisma.prestador.update({
+      where: { id: prestador.id },
+      data: {
+        localizacao: {
+          set: locaisIds.map(id => ({ id }))
+        }
+      }
+    });
+
+    // retorna os locais atualizados
+    return await prisma.localizacao.findMany({
+      where: {
+        id: { in: locaisIds }
+      }
+    });
+
+  } catch (error) {
+    console.error('Erro ao atualizar locais do prestador:', error);
+    throw error;
+  }
+};
+
+/**
+ * Atualizar documentos do prestador
+ */
+const atualizarDocumentosPrestador = async (usuarioId, documentos) => {
+  try {
+    const prestador = await prisma.prestador.findUnique({
+      where: { id_usuario: usuarioId },
+      include: { documento: true }
+    });
+
+    if (!prestador) {
+      throw new Error('Prestador não encontrado');
+    }
+
+    const resultados = [];
+
+    for (const doc of documentos) {
+      if (doc.id) {
+        if (doc.action === 'update' || doc.action === 'delete') {
+          const resultado = await prisma.documento.update({
+            where: { id: doc.id },
+            data: {
+              valor: doc.valor,
+              data_validade: doc.data_validade ? new Date(doc.data_validade) : null,
+              arquivo_url: doc.arquivo_url
+            }
+          });
+          resultados.push(resultado);
+        }
+      } else {
+        if (doc.action === 'create') {
+          const novoDoc = await prisma.documento.create({
+            data: {
+              tipo_documento: doc.tipo_documento,
+              valor: doc.valor,
+              data_validade: doc.data_validade ? new Date(doc.data_validade) : null,
+              arquivo_url: doc.arquivo_url,
+              id_prestador: prestador.id
+            }
+          });
+          resultados.push(novoDoc);
+        }
+      }
+    }
+
+    return resultados;
+
+  } catch (error) {
+    console.error('Erro ao atualizar documentos do prestador:', error);
+    throw error;
+  }
+};
+
+/**
+ * buscar prestador por usuario ID com relacionamentos
+ */
+const selectPrestadorCompletoByUsuarioId = async (usuarioId) => {
+  try {
+    return await prisma.prestador.findUnique({
+      where: { id_usuario: usuarioId },
+      include: {
+        usuario: {
+          select: {
+            nome: true,
+            email: true,
+            telefone: true
+          }
+        },
+        localizacao: true,
+        documento: true
+      }
+    });
+  } catch (error) {
+    console.error('Erro ao buscar prestador completo:', error);
+    throw error;
+  }
+};
+
 module.exports = {
   insertPrestador,
   selectAllPrestadores,
   selectPrestadorById,
   updatePrestador,
   deletePrestador,
-  selectPrestadorByUsuarioId
+  selectPrestadorByUsuarioId,
+  atualizarLocaisPrestador,
+  atualizarDocumentosPrestador,
+  selectPrestadorCompletoByUsuarioId
 }
