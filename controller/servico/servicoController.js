@@ -840,6 +840,13 @@ const criarServicoPorCategoria = async (req, res) => {
     // cria o serviço
     const novoServico = await servicoDAO.insertServico(dadosServico);
 
+    if (!novoServico) {
+      return res.status(500).json({
+        status_code: 500,
+        message: 'Erro ao criar o serviço'
+      });
+    }
+
     res.status(201).json({
       status_code: 201,
       message: `Serviço de ${categoria.nome} criado com sucesso`,
@@ -856,7 +863,7 @@ const criarServicoPorCategoria = async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Erro ao criar serviço from categoria:', error);
+    console.error('Erro ao criar serviço por categoria:', error);
     res.status(500).json({
       status_code: 500,
       message: 'Erro interno do servidor'
