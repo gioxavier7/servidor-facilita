@@ -10,7 +10,7 @@ const cors = require('cors')
 const bodyParser = require('body-parser')
 const path = require('path')
 
-// Carregar variáveis de ambiente dependendo do ambiente
+// carregar variáveis de ambiente dependendo do ambiente
 require('dotenv').config({
   path: process.env.NODE_ENV === 'production' ? '.env.production' : '.env.development'
 })
@@ -64,6 +64,7 @@ const carteiraRoutes = require('./routes/carteiraRoutes')
 const transacaoCarteiraRoutes = require('./routes/transacaoCarteiraRoutes')
 const pagbankWebhookRoutes = require('./routes/pagbankWebhookRoutes')
 const avaliacaoRoutes = require('./routes/avaliacaoRoutes')
+const notificacaoRoutes = require('./routes/notificacaoRoutes')
 
 // ========== ROTAS ==========
 
@@ -99,6 +100,9 @@ app.use('/v1/facilita/pagamento/webhook', pagbankWebhookRoutes)
 
 // ROTAS DE AVALIACAO
 app.use('/v1/facilita/avaliacao', avaliacaoRoutes)
+
+// ROTAS DE NOTIFICAÇÃO
+app.use('/v1/facilita/notificacao', notificacaoRoutes)
 
 // ========== START DO SERVIDOR =========
 app.listen(PORT, () => {

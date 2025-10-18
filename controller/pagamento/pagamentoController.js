@@ -1,6 +1,7 @@
 const pagamentoDAO = require('../../model/dao/pagamento');
 const servicoDAO = require('../../model/dao/servico');
 const axios = require('axios');
+const notificacaoDAO = require('../../model/dao/notificacao')
 
 /**
  * Cadastrar um pagamento simples (sem PagBank, local/teste)
@@ -95,6 +96,14 @@ const criarPagamentoPagBank = async function(req, res){
       metodo,
       status: 'PENDENTE',
       id_pagbank: pedido.id
+    })
+
+    await notificacaoDAO.criarNotificacao({
+      id_usuario: servico.id_contratante,
+      id_servico: servico.id,
+      tipo: 'pagamento',
+      titulo: 'Pagamento Criado 💰',
+      mensagem: `Pagamento de R$ ${(valor/100).toFixed(2)} criado. Aguardando confirmação.`
     })
 
     res.status(201).json({ pagamento, pedido })

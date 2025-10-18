@@ -45,6 +45,7 @@ model servico {
   id_localizacao   Int?
   valor            Decimal?      @db.Decimal(10, 2)
   pagamentos       pagamento[]
+  notificacoes     notificacao[]
   categoria        categoria?    @relation(fields: [id_categoria], references: [id])
   contratante      contratante   @relation(fields: [id_contratante], references: [id])
   localizacao      localizacao?  @relation(fields: [id_localizacao], references: [id])
@@ -55,6 +56,22 @@ model servico {
   @@index([id_localizacao], map: "servico_id_localizacao_fkey")
   @@index([id_prestador], map: "servico_id_prestador_fkey")
   @@map("servico")
+}
+
+model notificacao {
+  id           Int      @id @default(autoincrement())
+  id_usuario   Int
+  id_servico   Int?
+  tipo         String   // 'servico', 'pagamento', 'sistema', 'mensagem'
+  titulo       String
+  mensagem     String
+  lida         Boolean  @default(false)
+  data_criacao DateTime @default(now())
+
+  usuario      usuario  @relation(fields: [id_usuario], references: [id])
+  servico      servico? @relation(fields: [id_servico], references: [id])
+
+  @@map("notificacao")
 }
 
 model avaliacao {
@@ -182,6 +199,7 @@ model usuario {
   contratante  contratante?
   prestador    prestador?
   recuperacoes recuperacaoSenha[]
+  notificacoes notificacao[]
 }
 
 enum statusServico {

@@ -15,6 +15,7 @@ const contratanteDAO = require('../../model/dao/contratante')
 const prestadorDAO = require('../../model/dao/prestador')
 const categoriaDAO = require('../../model/dao/categoria')
 const { statusServico } = require('@prisma/client')
+const notificacaoDAO = require('../../model/dao/notificacao')
 
 /**
  * Cadastrar um novo serviço (APENAS CONTRATANTES)
@@ -307,12 +308,8 @@ const listarServicosDisponiveis = async (req, res) => {
   }
 }
 
-/**
- * aceitar um serviço (prestador)
- */
 const aceitarServico = async (req, res) => {
   try {
-    // verifica se o usuário é um prestador autenticado
     if (!req.user || req.user.tipo_conta !== 'PRESTADOR') {
       return res.status(403).json({ 
         status_code: 403, 
@@ -338,7 +335,19 @@ const aceitarServico = async (req, res) => {
       })
     }
 
-    const servicoAceito = await servicoDAO.aceitarServico(Number(id), prestador.id) //id do prestador
+    const servicoAceito = await servicoDAO.aceitarServico(Number(id), prestador.id)
+
+    try {
+      await notificacaoDAO.criarNotificacao({
+        id_usuario: servicoAceito.contratante.id_usuario,
+        id_servico: servicoAceito.id,
+        tipo: 'servico',
+        titulo: 'Serviço Aceito! 🎉',
+        mensagem: `O prestador ${prestador.usuario.nome} aceitou seu serviço "${servicoAceito.descricao.substring(0, 50)}..."`
+      })
+    } catch (notificacaoError) {
+      console.error('Erro ao criar notificação:', notificacaoError)
+    }
 
     res.status(200).json({ 
       status_code: 200, 
@@ -368,12 +377,12 @@ const aceitarServico = async (req, res) => {
     })
   }
 }
+
 /**
  * finaliza um serviço (prestador)
  */
 const finalizarServico = async (req, res) => {
   try {
-    // verifica se o usuário é um prestador autenticado
     if (!req.user || req.user.tipo_conta !== 'PRESTADOR') {
       return res.status(403).json({ 
         status_code: 403, 
@@ -389,6 +398,7 @@ const finalizarServico = async (req, res) => {
         message: 'ID do serviço é obrigatório' 
       })
     }
+    
     const prestador = await prestadorDAO.selectPrestadorByUsuarioId(req.user.id)
     
     if (!prestador) {
@@ -399,6 +409,18 @@ const finalizarServico = async (req, res) => {
     }
 
     const servicoFinalizado = await servicoDAO.finalizarServico(Number(id), prestador.id)
+
+    try {
+      await notificacaoDAO.criarNotificacao({
+        id_usuario: servicoFinalizado.contratante.id_usuario,
+        id_servico: servicoFinalizado.id,
+        tipo: 'servico_finalizado',
+        titulo: 'Serviço Finalizado! ✅',
+        mensagem: `O prestador ${prestador.usuario.nome} finalizou o serviço "${servicoFinalizado.descricao.substring(0, 30)}...". Aguarde sua confirmação.`
+      })
+    } catch (notificacaoError) {
+      console.error('Erro ao criar notificação:', notificacaoError)
+    }
 
     res.status(200).json({ 
       status_code: 200, 
@@ -664,7 +686,6 @@ const buscarPedidoContratante = async (req, res) => {
  */
 const confirmarConclusao = async (req, res) => {
   try {
-    // Verifica se o usuário é um contratante
     if (!req.user || req.user.tipo_conta !== 'CONTRATANTE') {
       return res.status(403).json({
         status_code: 403,
@@ -690,7 +711,19 @@ const confirmarConclusao = async (req, res) => {
       });
     }
 
-    const servicoConcluido = await servicoDAO.confirmarConclusao(Number(id), contratante.id);
+    const servicoConcluido = await servicoDAO.confirmarConclusao(Number(id), contratante.id)
+
+    try {
+      await notificacaoDAO.criarNotificacao({
+        id_usuario: servicoConcluido.prestador.id_usuario,
+        id_servico: servicoConcluido.id,
+        tipo: 'servico_confirmado',
+        titulo: 'Serviço Confirmado! 🎊',
+        mensagem: `O contratante confirmou a conclusão do serviço "${servicoConcluido.descricao.substring(0, 30)}...". Pagamento liberado!`
+      })
+    } catch (notificacaoError) {
+      console.error('Erro ao criar notificação:', notificacaoError)
+    }
 
     res.status(200).json({
       status_code: 200,
@@ -810,7 +843,7 @@ const criarServicoPorCategoria = async (req, res) => {
     }
 
     // busca perfil do contratante
-    const contratante = await contratanteDAO.selectContratanteByUsuarioId(req.user.id);
+    const contratante = await contratanteDAO.selectContratanteByUsuarioId(req.user.id)
     if (!contratante) {
       return res.status(404).json({
         status_code: 404,
@@ -818,7 +851,6 @@ const criarServicoPorCategoria = async (req, res) => {
       });
     }
 
-    // ✅ CORREÇÃO: Usa o DAO da categoria em vez do Prisma diretamente
     const categoria = await categoriaDAO.selectByIdCategoria(Number(categoriaId));
 
     if (!categoria) {
