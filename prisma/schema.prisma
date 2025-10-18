@@ -191,6 +191,7 @@ model usuario {
   id           Int                 @id @default(autoincrement())
   nome         String
   senha_hash   String
+  foto_perfil  String?             @db.VarChar(255)
   email        String              @unique(map: "Usuario_email_key")
   telefone     String              @unique(map: "Usuario_telefone_key")
   tipo_conta   usuario_tipo_conta?
