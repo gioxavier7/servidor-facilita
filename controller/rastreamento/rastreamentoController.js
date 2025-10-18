@@ -2,14 +2,15 @@
  * objetivo: Controller para gerenciar rastreamento de serviços
  * data: 25/09/2025
  * dev: Giovanna
- * versão: 1.0
+ * versão: 1.1 - Com WebSocket
  */
 
 const rastreamentoDAO = require('../../model/dao/rastreamento')
 const servicoDAO = require('../../model/dao/servico')
+const socketService = require('../../utils/socketService')
 
 /**
- * Inicia deslocamento do prestador
+ * inicia deslocamento do prestador
  */
 const iniciarDeslocamento = async (req, res) => {
   try {
@@ -18,7 +19,7 @@ const iniciarDeslocamento = async (req, res) => {
     const usuarioId = req.user.id;
     const userTipo = req.user.tipo_conta;
 
-    // vrificar se o usuário é um prestador
+    //verifica se o usuário é um prestador
     if (userTipo !== 'PRESTADOR') {
       return res.status(403).json({
         error: 'Acesso negado. Apenas prestadores podem iniciar deslocamento.'
@@ -43,6 +44,17 @@ const iniciarDeslocamento = async (req, res) => {
       });
     }
 
+    // websocket faz atualização de status
+    socketService.emitStatusUpdate(parseInt(id), {
+      status: 'A_CAMINHO',
+      rastreamento: resultado,
+      event: 'status_updated',
+      timestamp: new Date(),
+      message: 'Prestador a caminho do local'
+    });
+
+    console.log(`🔄 Status A_CAMINHO emitido via WebSocket para serviço ${id}`);
+
     res.json({
       success: true,
       message: 'Deslocamento iniciado com sucesso',
@@ -56,10 +68,10 @@ const iniciarDeslocamento = async (req, res) => {
     });
   }
 }
-/**
- * Marca chegada no local
- */
 
+/**
+ * marca chegada no local
+ */
 const chegouNoLocal = async (req, res) => {
   try {
     const { id } = req.params;
@@ -99,6 +111,18 @@ const chegouNoLocal = async (req, res) => {
       });
     }
 
+    //websocket faz atualização de status
+    socketService.emitStatusUpdate(parseInt(id), {
+      status: 'CHEGOU_LOCAL',
+      rastreamento: resultado,
+      event: 'status_updated',
+      timestamp: new Date(),
+      message: 'Prestador chegou no local',
+      location: { latitude, longitude, endereco }
+    });
+
+    console.log(`📍 Status CHEGOU_LOCAL emitido via WebSocket para serviço ${id}`);
+
     res.json({
       success: true,
       message: 'Chegada no local registrada com sucesso',
@@ -114,7 +138,7 @@ const chegouNoLocal = async (req, res) => {
 }
 
 /**
- * Inicia o serviço
+ * inicia o serviço
  */
 const iniciarServico = async (req, res) => {
   try {
@@ -137,7 +161,7 @@ const iniciarServico = async (req, res) => {
 
     const resultado = await rastreamentoDAO.iniciarServico(
       parseInt(id),
-      usuarioId // ← Enviando o ID correto
+      usuarioId
     );
 
     if (!resultado) {
@@ -145,6 +169,17 @@ const iniciarServico = async (req, res) => {
         error: 'Não foi possível iniciar o serviço'
       });
     }
+
+    // websocket faz atualização de status
+    socketService.emitStatusUpdate(parseInt(id), {
+      status: 'INICIADO',
+      rastreamento: resultado,
+      event: 'status_updated',
+      timestamp: new Date(),
+      message: 'Serviço iniciado'
+    });
+
+    console.log(`🔧 Status INICIADO emitido via WebSocket para serviço ${id}`);
 
     res.json({
       success: true,
@@ -161,7 +196,7 @@ const iniciarServico = async (req, res) => {
 }
 
 /**
- * Finaliza o serviço
+ * finaliza o serviço
  */
 const finalizarServico = async (req, res) => {
   try {
@@ -193,6 +228,16 @@ const finalizarServico = async (req, res) => {
       });
     }
 
+    socketService.emitStatusUpdate(parseInt(id), {
+      status: 'FINALIZADO',
+      rastreamento: resultado,
+      event: 'status_updated',
+      timestamp: new Date(),
+      message: 'Serviço finalizado'
+    });
+
+    console.log(`✅ Status FINALIZADO emitido via WebSocket para serviço ${id}`);
+
     res.json({
       success: true,
       message: 'Serviço finalizado com sucesso',
@@ -208,7 +253,62 @@ const finalizarServico = async (req, res) => {
 }
 
 /**
- * Busca histórico de rastreamento de um serviço
+ * atualiza localização em tempo real (rastreamento contínuo)
+ */
+const atualizarLocalizacao = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { latitude, longitude } = req.body;
+    
+    if (!req.user || !req.user.id) {
+      return res.status(401).json({
+        error: 'Usuário não autenticado'
+      });
+    }
+
+    const usuarioId = req.user.id;
+    const userTipo = req.user.tipo_conta;
+
+    if (userTipo !== 'PRESTADOR') {
+      return res.status(403).json({
+        error: 'Acesso negado. Apenas prestadores podem atualizar localização.'
+      });
+    }
+
+    if (!latitude || !longitude) {
+      return res.status(400).json({
+        error: 'Localização é obrigatória'
+      });
+    }
+
+    //apenas broadcast em tempo real
+    socketService.emitLocationUpdate(parseInt(id), {
+      servicoId: parseInt(id),
+      latitude: latitude,
+      longitude: longitude,
+      prestadorId: usuarioId,
+      timestamp: new Date(),
+      event: 'location_updated'
+    });
+
+    console.log(`📍 Localização atualizada via WebSocket para serviço ${id}: ${latitude}, ${longitude}`);
+
+    res.json({
+      success: true,
+      message: 'Localização atualizada em tempo real',
+      location: { latitude, longitude }
+    });
+
+  } catch (error) {
+    console.error('Erro no controller atualizarLocalizacao:', error);
+    res.status(500).json({
+      error: 'Erro interno do servidor'
+    });
+  }
+}
+
+/**
+ *busca histórico de rastreamento de um serviço
  */
 const getRastreamentoByServico = async (req, res) => {
   try {
@@ -236,7 +336,7 @@ const getRastreamentoByServico = async (req, res) => {
 }
 
 /**
- * Busca último status de rastreamento
+ *busca último status de rastreamento
  */
 const getUltimoRastreamento = async (req, res) => {
   try {
@@ -268,6 +368,7 @@ module.exports = {
   chegouNoLocal,
   iniciarServico,
   finalizarServico,
+  atualizarLocalizacao,
   getRastreamentoByServico,
   getUltimoRastreamento
 }

@@ -6,52 +6,53 @@
  */
 
 const chatDAO = require('../../model/dao/chat')
+const socketService = require('../../utils/socketService')
 
 /**
  * envia mensagem no chat do serviço
  */
 const enviarMensagem = async (req, res) => {
   try {
-    const { id } = req.params
-    const { mensagem, tipo = 'texto', url_anexo } = req.body
+    const { id } = req.params;
+    const { mensagem, tipo = 'texto', url_anexo } = req.body;
     
-    //verifica autenticação
+    //autenticação
     if (!req.user || !req.user.id) {
       return res.status(401).json({
         error: 'Usuário não autenticado'
-      })
+      });
     }
 
-    const usuarioId = req.user.id
-    const userTipo = req.user.tipo_conta
+    const usuarioId = req.user.id;
+    const userTipo = req.user.tipo_conta;
 
     //busca informações do serviço
-    const servico = await chatDAO.buscarServicoComParticipantes(parseInt(id))
+    const servico = await chatDAO.buscarServicoComParticipantes(parseInt(id));
 
     if (!servico) {
       return res.status(404).json({
         error: 'Serviço não encontrado'
-      })
+      });
     }
 
-    //verifica se usuário é do serviço
-    const isContratante = servico.contratante.usuario.id === usuarioId
-    const isPrestador = servico.prestador && servico.prestador.usuario.id === usuarioId
+    //verifica se usuário é participante do serviço
+    const isContratante = servico.contratante.usuario.id === usuarioId;
+    const isPrestador = servico.prestador && servico.prestador.usuario.id === usuarioId;
 
     if (!isContratante && !isPrestador) {
       return res.status(403).json({
         error: 'Acesso negado. Você não é participante deste serviço.'
-      })
+      });
     }
 
-    //determina quem está enviando
-    const enviado_por = isContratante ? 'contratante' : 'prestador'
+    //define quem está enviando
+    const enviado_por = isContratante ? 'contratante' : 'prestador';
 
     //validar mensagem
     if (!mensagem || mensagem.trim() === '') {
       return res.status(400).json({
         error: 'Mensagem não pode estar vazia'
-      })
+      });
     }
 
     //enviar mensagem
@@ -63,27 +64,36 @@ const enviarMensagem = async (req, res) => {
       tipo,
       enviado_por,
       url_anexo
-    }
+    };
 
-    const mensagemEnviada = await chatDAO.enviarMensagem(mensagemData)
+    const mensagemEnviada = await chatDAO.enviarMensagem(mensagemData);
 
     if (!mensagemEnviada) {
       return res.status(500).json({
         error: 'Erro ao enviar mensagem'
-      })
+      });
     }
+
+    //mensagem em tempo real
+    socketService.emitNewMessage(parseInt(id), {
+      ...mensagemEnviada,
+      event: 'new_message',
+      timestamp: new Date()
+    });
+
+    console.log(`💬 Mensagem enviada via WebSocket para serviço ${id}`);
 
     res.json({
       success: true,
       message: 'Mensagem enviada com sucesso',
       mensagem: mensagemEnviada
-    })
+    });
 
   } catch (error) {
-    console.error('Erro no controller enviarMensagem:', error)
+    console.error('Erro no controller enviarMensagem:', error);
     res.status(500).json({
       error: 'Erro interno do servidor'
-    })
+    });
   }
 }
 

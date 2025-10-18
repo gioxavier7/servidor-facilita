@@ -9,6 +9,7 @@ const express = require('express')
 const cors = require('cors')
 const bodyParser = require('body-parser')
 const path = require('path')
+const http = require('http')
 
 // carregar variáveis de ambiente dependendo do ambiente
 require('dotenv').config({
@@ -18,6 +19,13 @@ require('dotenv').config({
 // ========== CONFIGURAÇÃO DO SERVIDOR ==========
 const app = express()
 const PORT = process.env.PORT || 3000
+
+// ========== WEBSOCKET (Tempo Real) ==========
+const socketService = require('./utils/socketService');
+const server = http.createServer(app);
+
+// Inicializar WebSocket
+socketService.init(server);
 
 app.use(bodyParser.json())
 
@@ -113,7 +121,8 @@ app.use('/v1/facilita/rastreamento', rastreamentoRoutes)
 app.use('/v1/facilita/chat', chatRoutes);
 
 // ========== START DO SERVIDOR =========
-app.listen(PORT, () => {
+server.listen(PORT, () => {
   console.log(`🚀 Servidor rodando na porta ${PORT}...`)
+  console.log(`🔌 WebSocket ativo na porta ${PORT}`)
   console.log(`📚 Documentação Swagger: http://localhost:${PORT}/api-docs`)
 })

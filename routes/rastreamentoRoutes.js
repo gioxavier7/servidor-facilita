@@ -10,7 +10,7 @@ const router = express.Router()
 const rastreamentoController = require('../controller/rastreamento/rastreamentoController')
 const authMiddleware = require('../middleware/authMiddleware')
 
-// Aplicar autenticação em todas as rotas
+//autenticação em todas as rotas
 router.use(authMiddleware)
 
 //rastreamento - prestador
@@ -18,6 +18,7 @@ router.post('/:id/iniciar-deslocamento', rastreamentoController.iniciarDeslocame
 router.post('/:id/chegou-local', rastreamentoController.chegouNoLocal)
 router.post('/:id/iniciar-servico', rastreamentoController.iniciarServico)
 router.post('/:id/finalizar-servico', rastreamentoController.finalizarServico)
+router.post('/:id/localizacao', rastreamentoController.atualizarLocalizacao)
 
 //consultas - ambos (contratante e prestador)
 router.get('/:id/historico', rastreamentoController.getRastreamentoByServico)
