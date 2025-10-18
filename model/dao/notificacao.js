@@ -26,7 +26,6 @@ const criarNotificacao = async (dados) => {
  */
 const listarNotificacoes = async (id_usuario, apenasNaoLidas = false) => {
   try {
-    console.log("PASSEI POR ESSA MERDA --> ", id_usuario, apenasNaoLidas)
     const where = { id_usuario }
     if (apenasNaoLidas) {
       where.lida = false
