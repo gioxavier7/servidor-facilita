@@ -65,6 +65,7 @@ const transacaoCarteiraRoutes = require('./routes/transacaoCarteiraRoutes')
 const pagbankWebhookRoutes = require('./routes/pagbankWebhookRoutes')
 const avaliacaoRoutes = require('./routes/avaliacaoRoutes')
 const notificacaoRoutes = require('./routes/notificacaoRoutes')
+const rastreamentoRoutes = require('./routes/rastreamentoRoutes')
 
 // ========== ROTAS ==========
 
@@ -103,6 +104,9 @@ app.use('/v1/facilita/avaliacao', avaliacaoRoutes)
 
 // ROTAS DE NOTIFICAÇÃO
 app.use('/v1/facilita/notificacao', notificacaoRoutes)
+
+// ROTAS DE RASTREAMENTO
+app.use('/v1/facilita/rastreamento', rastreamentoRoutes)
 
 // ========== START DO SERVIDOR =========
 app.listen(PORT, () => {
