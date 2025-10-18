@@ -66,6 +66,7 @@ const pagbankWebhookRoutes = require('./routes/pagbankWebhookRoutes')
 const avaliacaoRoutes = require('./routes/avaliacaoRoutes')
 const notificacaoRoutes = require('./routes/notificacaoRoutes')
 const rastreamentoRoutes = require('./routes/rastreamentoRoutes')
+const chatRoutes = require('./routes/chatRoutes');
 
 // ========== ROTAS ==========
 
@@ -107,6 +108,9 @@ app.use('/v1/facilita/notificacao', notificacaoRoutes)
 
 // ROTAS DE RASTREAMENTO
 app.use('/v1/facilita/rastreamento', rastreamentoRoutes)
+
+// ROTAS DE CHAT
+app.use('/v1/facilita/chat', chatRoutes);
 
 // ========== START DO SERVIDOR =========
 app.listen(PORT, () => {
