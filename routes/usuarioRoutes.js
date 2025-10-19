@@ -22,8 +22,8 @@ router.put('/perfil', usuarioController.atualizarPerfil)
 router.get('/:id', usuarioController.buscarUsuario)                   
 
 // ================= ROTAS ADMINISTRATIVAS (SE NECESSÁRIO) =================
-// router.get('/', usuarioController.listarUsuarios)              
-// router.put('/:id', usuarioController.atualizarUsuario)             
-// router.delete('/:id', usuarioController.deletarUsuario)         
+router.get('/', usuarioController.listarUsuarios)              
+router.put('/:id', usuarioController.atualizarUsuario)             
+router.delete('/:id', usuarioController.deletarUsuario)         
 
 module.exports = router
