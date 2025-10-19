@@ -1,7 +1,7 @@
-const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
+const { PrismaClient } = require('@prisma/client')
+const prisma = new PrismaClient()
 
-// Criar carteira
+//criar carteira
 const insertCarteira = async function(carteira){
     try {
         return await prisma.carteira.create({ 
@@ -10,35 +10,53 @@ const insertCarteira = async function(carteira){
                 chave_pagbank: carteira.chave_pagbank,
                 saldo: carteira.saldo || 0
             } 
-        });
+        })
     } catch (error) {
-        console.error('Erro ao criar carteira', error);
-        return false;
+        console.error('Erro ao criar carteira', error)
+        return false
     }
 }
 
-// Buscar carteira por id_usuario
+//burca carteira por id_usuario
 const selectCarteiraByUsuario = async function(id_usuario){
     try {
-        return await prisma.carteira.findUnique({ where: { id_usuario: Number(id_usuario) } });
+        return await prisma.carteira.findUnique({ where: { id_usuario: Number(id_usuario) } })
     } catch (error) {
-        console.error('Erro ao buscar carteira', error);
-        return false;
+        console.error('Erro ao buscar carteira', error)
+        return false
     }
 }
 
-// Atualizar saldo
-const atualizarSaldo = async function(id, novoSaldo){
-    try {
-        return await prisma.carteira.update({ where: { id }, data: { saldo: novoSaldo } });
-    } catch (error) {
-        console.error('Erro ao atualizar saldo', error);
-        return false;
-    }
+/**
+ * atualizar saldo da carteira
+ */
+const atualizarSaldo = async (id_carteira, novo_saldo) => {
+  try {
+    return await prisma.carteira.update({
+      where: { id: id_carteira },
+      data: { saldo: novo_saldo }
+    })
+  } catch (error) {
+    console.error('Erro ao atualizar saldo:', error)
+    return null
+  }
+}
+
+//busvcar por id
+const selectCarteiraById = async (id) => {
+  try {
+    return await prisma.carteira.findUnique({
+      where: { id }
+    })
+  } catch (error) {
+    console.error('Erro ao buscar carteira por ID:', error)
+    return null
+  }
 }
 
 module.exports = {
     insertCarteira,
     selectCarteiraByUsuario,
-    atualizarSaldo
-};
+    atualizarSaldo,
+    selectCarteiraById
+}

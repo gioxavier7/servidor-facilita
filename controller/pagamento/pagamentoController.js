@@ -1,10 +1,13 @@
-const pagamentoDAO = require('../../model/dao/pagamento');
-const servicoDAO = require('../../model/dao/servico');
-const axios = require('axios');
+const pagamentoDAO = require('../../model/dao/pagamento')
+const servicoDAO = require('../../model/dao/servico')
+const axios = require('axios')
 const notificacaoDAO = require('../../model/dao/notificacao')
+const usuarioDAO = require('../../model/dao/usuario')
+const carteiraDAO = require('../../model/dao/carteira')
+const transacaoDAO = require('../../model/dao/transacaoCarteira')
 
 /**
- * Cadastrar um pagamento simples (sem PagBank, local/teste)
+ * cadastrar um pagamento simples (sem PagBank, local/teste)
  */
 const cadastrarPagamento = async function(req, res){
   try {
@@ -34,24 +37,24 @@ const cadastrarPagamento = async function(req, res){
 
     res.status(201).json({ status_code: 201, message: 'Pagamento cadastrado com sucesso', data: novoPagamento })
   } catch (error) {
-    console.error(error);
+    console.error(error)
     res.status(500).json({ status_code: 500, message: 'Erro interno do servidor' })
   }
-};
+}
 
 /**
- * Criar pagamento PagBank
+ * criar pagamento PagBank
  */
 const criarPagamentoPagBank = async function(req, res){
   try {
-    const { id_servico, valor, metodo } = req.body;
+    const { id_servico, valor, metodo } = req.body
 
     if (!id_servico || !valor || !metodo) {
       return res.status(400).json({ message: 'Campos inválidos ou incompletos.' })
     }
 
     // buscar serviço via DAO
-    const servico = await servicoDAO.selectServicoById(id_servico);
+    const servico = await servicoDAO.selectServicoById(id_servico)
     if (!servico) return res.status(404).json({ message: 'Serviço não encontrado' })
 
     // preparar informações do cliente para testes
@@ -115,7 +118,7 @@ const criarPagamentoPagBank = async function(req, res){
 }
 
 /**
- * Listar todos os pagamentos
+ * listar todos os pagamentos
  */
 const listarPagamentos = async function(req, res){
   try {
@@ -129,7 +132,7 @@ const listarPagamentos = async function(req, res){
 }
 
 /**
- * Buscar pagamento por ID
+ * buscar pagamento por ID
  */
 const buscarPagamentoPorId = async function(req, res){
   try {
@@ -151,7 +154,7 @@ const buscarPagamentoPorId = async function(req, res){
  */
 const atualizarIdPagBank = async function(req, res){
   try {
-    const { id_pagamento, id_pagbank } = req.body;
+    const { id_pagamento, id_pagbank } = req.body
 
     if (!id_pagamento || !id_pagbank) {
       return res.status(400).json({ status_code: 400, message: 'ID do pagamento e ID PagBank são obrigatórios' })
@@ -160,7 +163,7 @@ const atualizarIdPagBank = async function(req, res){
     const pagamentoAtualizado = await prisma.pagamento.update({
       where: { id: id_pagamento },
       data: { id_pagbank: id_pagbank }
-    });
+    })
 
     res.status(200).json({ 
       status_code: 200, 
@@ -168,15 +171,101 @@ const atualizarIdPagBank = async function(req, res){
       data: pagamentoAtualizado 
     })
   } catch (error) {
-    console.error(error);
+    console.error(error)
     res.status(500).json({ status_code: 500, message: 'Erro interno do servidor' })
   }
-};
+}
+
+/**
+ * recarregar carteira via PIX
+ */
+const recarregarCarteira = async function(req, res){
+  try {
+    const { valor } = req.body
+    const id_contratante = req.user.id
+
+    if (!valor || valor <= 0) {
+      return res.status(400).json({ message: 'Valor deve ser maior que zero.' })
+    }
+
+    // 1.verifica carteira
+    const carteira = await carteiraDAO.selectCarteiraByUsuario(id_contratante)
+    
+    if (!carteira) {
+      return res.status(404).json({ message: 'Carteira não encontrada. Crie uma carteira primeiro.' })
+    }
+
+    // 2.cria pagamento
+    const pagamentoData = {
+      id_servico: null,
+      id_contratante: id_contratante,
+      id_prestador: null,
+      valor: Math.round(valor * 100), // em centavos
+      metodo: 'PIX',
+      status: 'PAGO',
+      id_pagbank: `simulacao-${Date.now()}`
+    }
+
+    const pagamento = await pagamentoDAO.insertPagamento(pagamentoData)
+    
+    if (pagamento === null || !pagamento.id) {
+      console.error('❌ insertPagamento retornou:', pagamento)
+      return res.status(500).json({ 
+        message: 'Falha ao registrar pagamento no banco de dados'
+      })
+    }
+
+    // 3.atualiza saldo
+    const saldoAtual = Number(carteira.saldo) || 0
+    const novoSaldo = saldoAtual + Number(valor)    
+    const carteiraAtualizada = await carteiraDAO.atualizarSaldo(carteira.id, novoSaldo)
+    
+    if (!carteiraAtualizada) {
+      console.error('❌ Erro ao atualizar saldo da carteira')
+    }
+
+    // 4.registra transação
+    const transacao = await transacaoDAO.insertTransacao({
+      id_carteira: carteira.id,
+      tipo: 'ENTRADA',
+      valor: Number(valor),
+      descricao: `Recarga de R$ ${valor}`
+    })
+
+    // 5.notificacao
+    await notificacaoDAO.criarNotificacao({
+      id_usuario: id_contratante,
+      tipo: 'pagamento', 
+      titulo: 'Recarga Confirmada! 💰',
+      mensagem: `Sua carteira foi recarregada com R$ ${valor}. Saldo atual: R$ ${novoSaldo}`
+    })
+
+    res.status(201).json({ 
+      message: 'Recarga realizada com sucesso!',
+      valor_recarregado: Number(valor),
+      saldo_anterior: saldoAtual,
+      saldo_atual: novoSaldo,
+      pagamento_id: pagamento.id,
+      carteira_id: carteira.id
+    })
+
+  } catch (error) {
+    console.error('❌ ERRO CRÍTICO na recarga:')
+    console.error('Mensagem:', error.message)
+    console.error('Stack:', error.stack)
+    
+    res.status(500).json({ 
+      message: 'Erro interno ao processar recarga',
+      detalhes: process.env.NODE_ENV === 'development' ? error.message : 'Contate o suporte'
+    })
+  }
+}
 
 module.exports = {
   cadastrarPagamento,
   criarPagamentoPagBank,
   listarPagamentos,
   buscarPagamentoPorId,
-  atualizarIdPagBank
-};
+  atualizarIdPagBank,
+  recarregarCarteira
+}

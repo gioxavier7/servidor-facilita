@@ -12,6 +12,7 @@
     "mailgun.js": "^12.1.0",
     "mysql2": "^3.15.1",
     "nodemailer": "^7.0.6",
+    "socket.io": "^4.8.1",
     "swagger-jsdoc": "^6.2.8",
     "swagger-ui-express": "^5.0.1",
     "twilio": "^5.10.2"
