@@ -51,6 +51,7 @@ model servico {
   rastreamentos    rastreamento_servico[]
   atualizacoes     atualizacao_tempo_real[]
   mensagens        chat_servico[]
+  avaliacao        avaliacao[]
   
   categoria        categoria?    @relation(fields: [id_categoria], references: [id])
   contratante      contratante   @relation(fields: [id_contratante], references: [id])
@@ -139,12 +140,17 @@ model notificacao {
 
 model avaliacao {
   id             Int       @id @default(autoincrement())
-  id_servico     Int       @unique(map: "id_servico")
+  id_servico     Int       @unique
   id_contratante Int
   id_prestador   Int
   nota           Int
   comentario     String?   @db.Text
-  data_avaliacao DateTime? @default(now()) @db.DateTime(0)
+  data_avaliacao DateTime? @default(now())
+
+  // ADICIONE ESTAS RELAÇÕES
+  servico        servico     @relation(fields: [id_servico], references: [id])
+  contratante    contratante @relation(fields: [id_contratante], references: [id])
+  prestador      prestador   @relation(fields: [id_prestador], references: [id])
 
   @@index([id_contratante])
   @@index([id_prestador])
@@ -222,7 +228,8 @@ model contratante {
   usuario        usuario                  @relation(fields: [id_usuario], references: [id], map: "Contratante_id_usuario_fkey")
   pagamento      pagamento[]
   servico        servico[]
-  mensagens        chat_servico[]
+  mensagens      chat_servico[]
+  avaliacao      avaliacao[]
 
   @@index([id_localizacao], map: "Contratante_id_localizacao_fkey")
 }
@@ -249,6 +256,7 @@ model prestador {
   localizacao localizacao[] @relation("localizacaotoprestador")
   atualizacoes     atualizacao_tempo_real[]
   mensagens        chat_servico[]
+  avaliacao        avaliacao[]
 
   @@index([id_usuario], map: "Prestador_id_usuario_idx")
 }
