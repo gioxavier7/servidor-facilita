@@ -1100,6 +1100,5 @@ module.exports = {
   pesquisarPorDescricao,
   filtrarPorCategoria,
   criarServicoPorCategoria,
-  pagarServicoComCarteira,
-  liberarPagamentoServico
+  pagarServicoComCarteira
 }
