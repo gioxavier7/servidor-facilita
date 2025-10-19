@@ -1,3 +1,4 @@
+// routes/servicoRoutes.js - VERSÃO ATUALIZADA
 const express = require('express')
 const router = express.Router()
 const servicoController = require('../controller/servico/servicoController')
@@ -12,6 +13,10 @@ router.get('/filtrar', servicoController.filtrarPorCategoria)
 router.get('/disponiveis', servicoController.listarServicosDisponiveis)
 router.get('/meus-servicos', servicoController.listarMeusServicos)
 router.get('/contratante/pedidos', servicoController.listarPedidosContratante)
+
+//rota de pagamento
+router.post('/pagar', servicoController.pagarServicoComCarteira)
+//router.post('/liberar-pagamento', servicoController.liberarPagamentoServico)
 
 //rotas com parametros específicos
 router.get('/contratante/pedidos/:id', servicoController.buscarPedidoContratante)

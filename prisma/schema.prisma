@@ -253,6 +253,21 @@ model prestador {
   @@index([id_usuario], map: "Prestador_id_usuario_idx")
 }
 
+model recarga_carteira {
+  id             Int               @id @default(autoincrement())
+  id_usuario     Int
+  valor          Decimal           @db.Decimal(10, 2)
+  metodo         MetodoRecarga     @default(PIX)
+  status         StatusRecarga     @default(PENDENTE)
+  id_pagbank     String?
+  data_solicitacao DateTime        @default(now())
+  data_confirmacao DateTime?
+  usuario        usuario           @relation(fields: [id_usuario], references: [id])
+
+  @@index([id_usuario])
+  @@map("recarga_carteira")
+}
+
 model usuario {
   id           Int                 @id @default(autoincrement())
   nome         String
@@ -267,6 +282,7 @@ model usuario {
   prestador    prestador?
   recuperacoes recuperacaoSenha[]
   notificacoes notificacao[]
+  recarga      recarga_carteira[]
 }
 
 enum statusServico {
@@ -329,4 +345,17 @@ enum TipoAtualizacao {
   STATUS
   MENSAGEM
   FOTO
+}
+
+enum MetodoRecarga {
+  PIX
+  CARTAO
+  BOLETO
+}
+
+enum StatusRecarga {
+  PENDENTE
+  CONFIRMADA
+  CANCELADA
+  FALHOU
 }

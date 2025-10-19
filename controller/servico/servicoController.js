@@ -7,7 +7,7 @@
  *  - Listagem / Buscar por ID
  *
  * dev: Giovanna
- * data: 25/09/2025
+ * data: 18/10/2025
  */
 
 const servicoDAO = require('../../model/dao/servico')
@@ -16,9 +16,13 @@ const prestadorDAO = require('../../model/dao/prestador')
 const categoriaDAO = require('../../model/dao/categoria')
 const { statusServico } = require('@prisma/client')
 const notificacaoDAO = require('../../model/dao/notificacao')
+const CalculoValorService = require('../../utils/calcularValorService')
+const carteiraDAO = require('../../model/dao/carteira')
+const transacaoDAO = require('../../model/dao/transacaoCarteira')
+const pagamentoDAO = require('../../model/dao/pagamento')
 
 /**
- * Cadastrar um novo serviço (APENAS CONTRATANTES)
+ *cadastrar um novo serviço (APENAS CONTRATANTES) - ATUALIZADO
  */
 const cadastrarServico = async (req, res) => {
   try {
@@ -34,14 +38,25 @@ const cadastrarServico = async (req, res) => {
       })
     }
 
-    const { id_categoria, descricao, id_localizacao, valor } = req.body
+    const { 
+      id_categoria, 
+      descricao, 
+      id_localizacao, 
+      valor_adicional = 0,
+      origem_lat,
+      origem_lng, 
+      destino_lat,
+      destino_lng
+    } = req.body
 
-    if (!descricao) {
-      return res.status(400).json({ status_code: 400, message: 'Campos obrigatórios: descricao' })
+    if (!descricao || !id_categoria) {
+      return res.status(400).json({ 
+        status_code: 400, 
+        message: 'Campos obrigatórios: descricao, id_categoria' 
+      })
     }
 
     const contratante = await contratanteDAO.selectContratanteByUsuarioId(req.user.id)
-    
     if (!contratante) {
       return res.status(404).json({ 
         status_code: 404, 
@@ -49,13 +64,23 @@ const cadastrarServico = async (req, res) => {
       })
     }
 
+    // CALCULAR VALOR AUTOMATICAMENTE
+    const calculoValor = await CalculoValorService.calcularValorServico({
+      id_categoria,
+      valor_adicional,
+      origem_lat,
+      origem_lng,
+      destino_lat,
+      destino_lng
+    })
+
     const novoServico = await servicoDAO.insertServico({
       id_contratante: contratante.id,
       id_prestador: null,
-      id_categoria: id_categoria || null,
+      id_categoria: id_categoria,
       descricao,
       id_localizacao: id_localizacao || null,
-      valor: valor || null,
+      valor: calculoValor.valor_total, // valor calculado automaticamente
       status: statusServico.PENDENTE
     })
 
@@ -63,13 +88,20 @@ const cadastrarServico = async (req, res) => {
       return res.status(500).json({ status_code: 500, message: 'Erro ao cadastrar serviço' })
     }
 
-    res.status(201).json({ status_code: 201, message: 'Serviço cadastrado com sucesso', data: novoServico })
+    //adicionar detalhes do cálculo na resposta
+    novoServico.detalhes_valor = calculoValor
+
+    res.status(201).json({ 
+      status_code: 201, 
+      message: 'Serviço cadastrado com sucesso', 
+      data: novoServico,
+      detalhes_calculo: calculoValor
+    })
   } catch (error) {
     console.error(error)
     res.status(500).json({ status_code: 500, message: 'Erro interno do servidor' })
   }
 }
-
 /**
  * atualizar um serviço (APENAS DONO DO SERVIÇO)
  */
@@ -177,43 +209,43 @@ const deletarServico = async (req, res) => {
  */
 const listarServicos = async (req, res) => {
   try {
-    let servicos;
+    let servicos
 
     // CONTRATANTES tem apenas seus próprios serviços
     if (req.user.tipo_conta === 'CONTRATANTE') {
-      const contratante = await contratanteDAO.selectContratanteByUsuarioId(req.user.id);
+      const contratante = await contratanteDAO.selectContratanteByUsuarioId(req.user.id)
       if (!contratante) {
         return res.status(404).json({ 
           status_code: 404, 
           message: 'Perfil de contratante não encontrado' 
-        });
+        })
       }
-      servicos = await servicoDAO.selectServicosPorContratante(contratante.id);
+      servicos = await servicoDAO.selectServicosPorContratante(contratante.id)
     } 
     // PRESTADORES tem serviços disponíveis + seus serviços aceitos
     else if (req.user.tipo_conta === 'PRESTADOR') {
       
-      const prestador = await prestadorDAO.selectPrestadorByUsuarioId(req.user.id);
+      const prestador = await prestadorDAO.selectPrestadorByUsuarioId(req.user.id)
       
       if (!prestador) {
         return res.status(404).json({ 
           status_code: 404, 
           message: 'Perfil de prestador não encontrado' 
-        });
+        })
       }
 
       const [disponiveis, meusServicos] = await Promise.all([
         servicoDAO.selectServicosDisponiveis(),
         servicoDAO.selectServicosPorPrestador(prestador.id) 
-      ]);
+      ])
       servicos = {
         disponiveis: disponiveis || [],
         meus_servicos: meusServicos || []
-      };
+      }
     }
-    // ADMIN pode ver todos (se houver)
+    // ADMIN pode ver todos
     else {
-      servicos = await servicoDAO.selectAllServico();
+      servicos = await servicoDAO.selectAllServico()
     }
 
     if (!servicos || (Array.isArray(servicos) && servicos.length === 0)) {
@@ -234,7 +266,7 @@ const buscarServicoPorId = async (req, res) => {
   try {
     const { id } = req.params
 
-    // Validação mais robusta
+    // validacao
     if (!id || isNaN(Number(id))) {
       return res.status(400).json({ 
         status_code: 400, 
@@ -252,9 +284,9 @@ const buscarServicoPorId = async (req, res) => {
     }
 
     //apenas dono ou prestador atribuído podem ver
-    const contratante = await contratanteDAO.selectContratanteByUsuarioId(req.user.id);
-    const isDono = servico.id_contratante === contratante?.id;
-    const isPrestadorAtribuido = servico.id_prestador === req.user.id;
+    const contratante = await contratanteDAO.selectContratanteByUsuarioId(req.user.id)
+    const isDono = servico.id_contratante === contratante?.id
+    const isPrestadorAtribuido = servico.id_prestador === req.user.id
     
     if (!isDono && !isPrestadorAtribuido && req.user.tipo_conta !== 'ADMIN') {
       return res.status(403).json({ 
@@ -489,11 +521,11 @@ const listarMeusServicos = async (req, res) => {
 }
 
 /**
- * Listar pedidos/histórico de serviços do contratante autenticado
+ *listar pedidos/histórico de serviços do contratante autenticado
  */
 const listarPedidosContratante = async (req, res) => {
   try {
-    // Verifica se é contratante
+    // verifica se é contratante
     if (!req.user || req.user.tipo_conta !== 'CONTRATANTE') {
       return res.status(403).json({ 
         status_code: 403, 
@@ -501,10 +533,10 @@ const listarPedidosContratante = async (req, res) => {
       })
     }
 
-    const { status, page = 1, limit = 10 } = req.query;
+    const { status, page = 1, limit = 10 } = req.query
 
-    // Busca o perfil do contratante
-    const contratante = await contratanteDAO.selectContratanteByUsuarioId(req.user.id);
+    //busca o perfil do contratante
+    const contratante = await contratanteDAO.selectContratanteByUsuarioId(req.user.id)
     
     if (!contratante) {
       return res.status(404).json({ 
@@ -513,10 +545,10 @@ const listarPedidosContratante = async (req, res) => {
       })
     }
 
-    // Busca os serviços do contratante com possíveis filtros
-    let servicos;
+    //busca os serviços do contratante com possíveis filtros
+    let servicos
     if (status) {
-      // Valida se o status é válido
+      //valida se o status é válido
       if (!Object.values(statusServico).includes(status)) {
         return res.status(400).json({
           status_code: 400,
@@ -528,13 +560,13 @@ const listarPedidosContratante = async (req, res) => {
         status,
         parseInt(page),
         parseInt(limit)
-      );
+      )
     } else {
       servicos = await servicoDAO.selectServicosPorContratante(
         contratante.id,
         parseInt(page),
         parseInt(limit)
-      );
+      )
     }
 
     if (!servicos || servicos.length === 0) {
@@ -569,11 +601,11 @@ const listarPedidosContratante = async (req, res) => {
           email: servico.prestador.usuario.email
         }
       } : null
-    }));
+    }))
 
     //paginação
-    const totalPedidos = await servicoDAO.countServicosPorContratante(contratante.id);
-    const totalPages = Math.ceil(totalPedidos / parseInt(limit));
+    const totalPedidos = await servicoDAO.countServicosPorContratante(contratante.id)
+    const totalPages = Math.ceil(totalPedidos / parseInt(limit))
 
     res.status(200).json({
       status_code: 200,
@@ -629,7 +661,7 @@ const buscarPedidoContratante = async (req, res) => {
     }
 
     //verifica se o pedido pertence ao contratante
-    const contratante = await contratanteDAO.selectContratanteByUsuarioId(req.user.id);
+    const contratante = await contratanteDAO.selectContratanteByUsuarioId(req.user.id)
     if (servico.id_contratante !== contratante.id) {
       return res.status(403).json({ 
         status_code: 403, 
@@ -682,7 +714,7 @@ const buscarPedidoContratante = async (req, res) => {
 }
 
 /**
- * Confirmar a conclusão de um serviço (contratante)
+ * confirmar a conclusão de um serviço (contratante)
  */
 const confirmarConclusao = async (req, res) => {
   try {
@@ -690,25 +722,25 @@ const confirmarConclusao = async (req, res) => {
       return res.status(403).json({
         status_code: 403,
         message: 'Acesso permitido apenas para contratantes'
-      });
+      })
     }
 
-    const { id } = req.params;
+    const { id } = req.params
 
     if (!id) {
       return res.status(400).json({
         status_code: 400,
         message: 'ID do serviço é obrigatório'
-      });
+      })
     }
 
-    const contratante = await contratanteDAO.selectContratanteByUsuarioId(req.user.id);
+    const contratante = await contratanteDAO.selectContratanteByUsuarioId(req.user.id)
 
     if (!contratante) {
       return res.status(404).json({
         status_code: 404,
         message: 'Perfil de contratante não encontrado'
-      });
+      })
     }
 
     const servicoConcluido = await servicoDAO.confirmarConclusao(Number(id), contratante.id)
@@ -729,98 +761,98 @@ const confirmarConclusao = async (req, res) => {
       status_code: 200,
       message: 'Serviço concluído com sucesso',
       data: servicoConcluido
-    });
+    })
   } catch (error) {
-    console.error('Erro ao confirmar conclusão do serviço:', error);
+    console.error('Erro ao confirmar conclusão do serviço:', error)
 
     if (error.message.includes('não autorizado') || error.message.includes('não está finalizado')) {
       return res.status(400).json({
         status_code: 400,
         message: error.message
-      });
+      })
     }
 
     res.status(500).json({
       status_code: 500,
       message: 'Erro interno do servidor'
-    });
+    })
   }
-};
+}
 
 /**
- * Pesquisar serviços por descrição
+ * pesquisar serviços por descrição
  */
 const pesquisarPorDescricao = async (req, res) => {
   try {
-    const { descricao } = req.query;
+    const { descricao } = req.query
 
     if (!descricao) {
       return res.status(400).json({
         status_code: 400,
         message: 'O parâmetro "descricao" é obrigatório'
-      });
+      })
     }
 
-    const servicos = await servicoDAO.pesquisarPorDescricao(descricao);
+    const servicos = await servicoDAO.pesquisarPorDescricao(descricao)
 
     if (!servicos || servicos.length === 0) {
       return res.status(404).json({
         status_code: 404,
         message: 'Nenhum serviço encontrado com a descrição fornecida'
-      });
+      })
     }
 
     res.status(200).json({
       status_code: 200,
       data: servicos
-    });
+    })
   } catch (error) {
-    console.error('Erro ao pesquisar serviços por descrição:', error);
+    console.error('Erro ao pesquisar serviços por descrição:', error)
     res.status(500).json({
       status_code: 500,
       message: 'Erro interno do servidor'
-    });
+    })
   }
-};
+}
 
 /**
- * Filtrar serviços por categoria
+ * filtrar serviços por categoria
  */
 const filtrarPorCategoria = async (req, res) => {
   try {
-    const { categoriaId } = req.query;
+    const { categoriaId } = req.query
 
     if (!categoriaId) {
       return res.status(400).json({
         status_code: 400,
         message: 'O parâmetro "categoriaId" é obrigatório'
-      });
+      })
     }
 
-    const servicos = await servicoDAO.filtrarPorCategoria(Number(categoriaId));
+    const servicos = await servicoDAO.filtrarPorCategoria(Number(categoriaId))
 
     if (!servicos || servicos.length === 0) {
       return res.status(404).json({
         status_code: 404,
         message: 'Nenhum serviço encontrado para a categoria fornecida'
-      });
+      })
     }
 
     res.status(200).json({
       status_code: 200,
       data: servicos
-    });
+    })
   } catch (error) {
-    console.error('Erro ao filtrar serviços por categoria:', error);
+    console.error('Erro ao filtrar serviços por categoria:', error)
     res.status(500).json({
       status_code: 500,
       message: 'Erro interno do servidor'
-    });
+    })
   }
-};
+}
 
 /**
- * criar serviço a partir de categoria pré-definida
+ * criar serviço a partir de categoria pré-defina
  */
 const criarServicoPorCategoria = async (req, res) => {
   try {
@@ -829,17 +861,25 @@ const criarServicoPorCategoria = async (req, res) => {
       return res.status(403).json({
         status_code: 403,
         message: 'Acesso permitido apenas para contratantes'
-      });
+      })
     }
 
-    const { categoriaId } = req.params;
-    const { descricao_personalizada, id_localizacao, valor_personalizado } = req.body;
+    const { categoriaId } = req.params
+    const { 
+      descricao_personalizada, 
+      id_localizacao, 
+      valor_adicional = 0,
+      origem_lat, 
+      origem_lng, 
+      destino_lat, 
+      destino_lng 
+    } = req.body
 
     if (!categoriaId) {
       return res.status(400).json({
         status_code: 400,
         message: 'ID da categoria é obrigatório'
-      });
+      })
     }
 
     // busca perfil do contratante
@@ -848,17 +888,25 @@ const criarServicoPorCategoria = async (req, res) => {
       return res.status(404).json({
         status_code: 404,
         message: 'Perfil de contratante não encontrado'
-      });
+      })
     }
 
-    const categoria = await categoriaDAO.selectByIdCategoria(Number(categoriaId));
-
+    const categoria = await categoriaDAO.selectByIdCategoria(Number(categoriaId))
     if (!categoria) {
       return res.status(404).json({
         status_code: 404,
         message: 'Categoria não encontrada'
-      });
+      })
     }
+
+    const calculoValor = await CalculoValorService.calcularValorServico({
+      id_categoria: categoria.id,
+      valor_adicional: valor_adicional,
+      origem_lat: origem_lat,
+      origem_lng: origem_lng,
+      destino_lat: destino_lat,
+      destino_lng: destino_lng
+    })
 
     // prepara dados do serviço
     const dadosServico = {
@@ -866,17 +914,18 @@ const criarServicoPorCategoria = async (req, res) => {
       id_categoria: categoria.id,
       descricao: descricao_personalizada || `Serviço de ${categoria.nome}`,
       id_localizacao: id_localizacao || contratante.id_localizacao,
-      valor: valor_personalizado || categoria.preco_base
-    };
+      valor: calculoValor.valor_total,
+      status: 'PENDENTE'
+    }
 
     // cria o serviço
-    const novoServico = await servicoDAO.insertServico(dadosServico);
+    const novoServico = await servicoDAO.insertServico(dadosServico)
 
     if (!novoServico) {
       return res.status(500).json({
         status_code: 500,
         message: 'Erro ao criar o serviço'
-      });
+      })
     }
 
     res.status(201).json({
@@ -890,18 +939,150 @@ const criarServicoPorCategoria = async (req, res) => {
           icone: categoria.icone,
           preco_base: categoria.preco_base,
           tempo_medio: categoria.tempo_medio
+        },
+        detalhes_calculo: {
+          valor_base: calculoValor.valor_base,
+          valor_adicional: calculoValor.valor_adicional,
+          valor_distancia: calculoValor.valor_distancia,
+          valor_total: calculoValor.valor_total,
+          distancia_km: calculoValor.detalhes.distancia_km
         }
       }
-    });
+    })
 
   } catch (error) {
-    console.error('Erro ao criar serviço por categoria:', error);
+    console.error('Erro ao criar serviço por categoria:', error)
     res.status(500).json({
       status_code: 500,
       message: 'Erro interno do servidor'
-    });
+    })
   }
-};
+}
+
+/**
+ * pagar serviço com saldo da carteira (transferência interna)
+ */
+const pagarServicoComCarteira = async (req, res) => {
+  try {
+    const { id_servico } = req.body
+    const id_usuario = req.user.id
+
+    console.log('💳 Pagando serviço:', id_servico, 'Usuário logado:', id_usuario)
+
+    if (!id_servico) {
+      return res.status(400).json({
+        status_code: 400,
+        message: 'ID do serviço é obrigatório'
+      })
+    }
+
+    //buscar serviço
+    const servico = await servicoDAO.selectServicoById(id_servico)
+    if (!servico) {
+      return res.status(404).json({
+        status_code: 404,
+        message: 'Serviço não encontrado'
+      })
+    }
+
+    if (servico.contratante.id_usuario !== id_usuario) {
+      console.log('❌ Acesso negado - IDs não coincidem:', {
+        contratante_usuario_id: servico.contratante.id_usuario,
+        usuario_logado: id_usuario
+      })
+      return res.status(403).json({
+        status_code: 403,
+        message: 'Acesso negado. Você não é o contratante deste serviço.'
+      })
+    }
+
+    const valorServico = Number(servico.valor)
+
+    const carteiraContratante = await carteiraDAO.selectCarteiraByUsuario(id_usuario)
+    const carteiraPrestador = await carteiraDAO.selectCarteiraByUsuario(servico.prestador.id_usuario)
+
+    if (!carteiraContratante || !carteiraPrestador) {
+      return res.status(404).json({
+        status_code: 404,
+        message: 'Carteira não encontrada para um dos usuários'
+      })
+    }
+
+    //verificar saldo do contratante
+    const saldoContratante = Number(carteiraContratante.saldo)
+
+    if (saldoContratante < valorServico) {
+      return res.status(400).json({
+        status_code: 400,
+        message: 'Saldo insuficiente. Recarregue sua carteira.'
+      })
+    }
+
+    // PROCESSAR TRANSFERÊNCIA INTERNA
+    // 1. debitar do contratante
+    const novoSaldoContratante = saldoContratante - valorServico
+    await carteiraDAO.atualizarSaldo(carteiraContratante.id, novoSaldoContratante)
+    
+    // 2. registrar transação de saída (contratante)
+    await transacaoDAO.insertTransacao({
+      id_carteira: carteiraContratante.id,
+      tipo: 'SAIDA',
+      valor: valorServico,
+      descricao: `Pagamento serviço #${servico.id}`
+    })
+
+    // 3. creditar no prestador
+    const saldoPrestador = Number(carteiraPrestador.saldo)
+    const novoSaldoPrestador = saldoPrestador + valorServico
+    await carteiraDAO.atualizarSaldo(carteiraPrestador.id, novoSaldoPrestador)
+    
+    // 4. registrar transação de entrada (prestador)
+    await transacaoDAO.insertTransacao({
+      id_carteira: carteiraPrestador.id,
+      tipo: 'ENTRADA',
+      valor: valorServico,
+      descricao: `Recebimento serviço #${servico.id}`
+    })
+
+    // 5. criar registro de pagamento interno
+    await pagamentoDAO.insertPagamento({
+      id_servico: servico.id,
+      id_contratante: servico.id_contratante,
+      id_prestador: servico.id_prestador,
+      valor: valorServico * 100, // em centavos
+      metodo: 'CARTEIRA_PAGBANK',
+      status: 'PAGO',
+      id_pagbank: null // pagamento interno
+    })
+
+    // 6. atualizar status do serviço (se necessário)
+    if (servico.status !== 'FINALIZADO') {
+      await servicoDAO.updateServico(servico.id, {
+        status: 'FINALIZADO',
+        data_conclusao: new Date()
+      })
+    }
+
+    res.status(200).json({
+      status_code: 200,
+      message: 'Serviço pago com sucesso!',
+      data: {
+        servico_id: servico.id,
+        valor_pago: valorServico,
+        saldo_contratante: novoSaldoContratante,
+        saldo_prestador: novoSaldoPrestador,
+        status: 'PAGO'
+      }
+    })
+
+  } catch (error) {
+    console.error('❌ Erro ao pagar serviço:', error)
+    res.status(500).json({
+      status_code: 500,
+      message: 'Erro interno do servidor'
+    })
+  }
+}
 
 module.exports = {
   cadastrarServico,
@@ -918,5 +1099,7 @@ module.exports = {
   confirmarConclusao,
   pesquisarPorDescricao,
   filtrarPorCategoria,
-  criarServicoPorCategoria
+  criarServicoPorCategoria,
+  pagarServicoComCarteira,
+  liberarPagamentoServico
 }

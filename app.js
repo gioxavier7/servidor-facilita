@@ -75,6 +75,7 @@ const avaliacaoRoutes = require('./routes/avaliacaoRoutes')
 const notificacaoRoutes = require('./routes/notificacaoRoutes')
 const rastreamentoRoutes = require('./routes/rastreamentoRoutes')
 const chatRoutes = require('./routes/chatRoutes');
+const recargaRoutes = require('./routes/recargasRoutes')
 
 // ========== ROTAS ==========
 
@@ -103,7 +104,7 @@ app.use('/v1/facilita/pagamento', pagamentoRoutes)
 app.use('/v1/facilita/carteira', carteiraRoutes)
 
 // ROTAS DE TRANSAÇÃO-CARTEIRA
-app.use('/v1/facilita/transacao-carteira', transacaoCarteiraRoutes)
+app.use('/v1/facilita/transacao', transacaoCarteiraRoutes)
 
 // ROTAS DE WEBHOOK PAGBANK
 app.use('/v1/facilita/pagamento/webhook', pagbankWebhookRoutes)
@@ -119,6 +120,9 @@ app.use('/v1/facilita/rastreamento', rastreamentoRoutes)
 
 // ROTAS DE CHAT
 app.use('/v1/facilita/chat', chatRoutes);
+
+// ROTAS DE RECARGA
+app.use('/v1/facilita/recarga', recargaRoutes);
 
 // ========== START DO SERVIDOR =========
 server.listen(PORT, () => {
