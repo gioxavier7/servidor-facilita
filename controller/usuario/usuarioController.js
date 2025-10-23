@@ -7,6 +7,8 @@
  */
 
 const usuarioDAO = require('../../model/dao/usuario')
+const contratanteDAO = require('../../model/dao/contratante')
+const prestadorDAO = require('../../model/dao/prestador')
 const jwt = require('jsonwebtoken')
 const bcrypt = require('bcrypt')
 require('dotenv').config()
