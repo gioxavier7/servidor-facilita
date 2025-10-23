@@ -28,7 +28,7 @@ const insertServico = async (servico) => {
       include: {
         contratante: {
           include: {
-            usuario: true // ← ADICIONE ESTA LINHA
+            usuario: true
           }
         },
         prestador: true,
