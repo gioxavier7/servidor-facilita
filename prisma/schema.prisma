@@ -32,6 +32,25 @@ model categoria {
   @@map("categoria")
 }
 
+model servico_parada {
+  id               Int      @id @default(autoincrement())
+  id_servico       Int
+  ordem            Int      
+  tipo             String   @db.VarChar(20) // 'origem', 'parada', 'destino'
+  lat              Decimal  @db.Decimal(10, 8)
+  lng              Decimal  @db.Decimal(11, 8)
+  descricao        String?  @db.VarChar(255)
+  endereco_completo String? // wndereço completo para exibição
+  tempo_estimado_chegada Int? // tempo estimado para chegar nesta parada (em minutos)
+  data_criacao     DateTime @default(now())
+
+  servico servico @relation(fields: [id_servico], references: [id], onDelete: Cascade)
+
+  @@map("servico_parada")
+  @@index([id_servico])
+  @@index([id_servico, ordem])
+}
+
 model servico {
   id               Int           @id @default(autoincrement())
   id_contratante   Int
@@ -46,12 +65,14 @@ model servico {
   valor            Decimal?      @db.Decimal(10, 2)
   tempo_estimado   Int?          // em minutos
   data_inicio      DateTime?     // quando o prestador começou a se deslocar
+  data_chegada     DateTime?     // quando o prestador chegou ao local
   pagamentos       pagamento[]
   notificacoes     notificacao[]
   rastreamentos    rastreamento_servico[]
   atualizacoes     atualizacao_tempo_real[]
   mensagens        chat_servico[]
   avaliacao        avaliacao[]
+  paradas          servico_parada[]
   
   categoria        categoria?    @relation(fields: [id_categoria], references: [id])
   contratante      contratante   @relation(fields: [id_contratante], references: [id])
