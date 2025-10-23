@@ -181,22 +181,37 @@ const selectByIdServico = async (id) => {
 const selectServicoById = async (id) => {
   try {
     const servico = await prisma.servico.findUnique({
-      where: { id },
+      where: { id: parseInt(id) },
       include: {
-        contratante: true,
-        prestador: true
+        contratante: {
+          include: {
+            usuario: true
+          }
+        },
+        prestador: {
+          include: {
+            usuario: true
+          }
+        },
+        categoria: true,
+        localizacao: true,
+        pagamentos: true,
+        paradas: {
+          orderBy: {
+            ordem: 'asc'
+          }
+        }
       }
-    });
-
-    return servico || false;
+    })
+    return servico
   } catch (error) {
-    console.error("Erro ao buscar serviço por ID (PagBank):", error);
-    return false;
+    console.error("Erro ao buscar serviço por ID:", error)
+    return false
   }
 }
 
 /**
- * Retorna serviços disponíveis (PENDENTE) para prestadores
+ * retorna serviços disponíveis (PENDENTE) para prestadores
  * @returns {Array|false} - lista de serviços disponíveis ou false
  */
 const selectServicosDisponiveis = async () => {
@@ -213,7 +228,12 @@ const selectServicosDisponiveis = async () => {
           }
         },
         categoria: true,
-        localizacao: true
+        localizacao: true,
+        paradas: {
+          orderBy: {
+            ordem: 'asc'
+          }
+        }
       }
     })
 
@@ -347,7 +367,12 @@ const selectServicosPorPrestador = async (prestadorId) => {
       include: {
         contratante: {
           include: {
-            usuario: true
+            usuario: true,
+            paradas: {
+            orderBy: { 
+              ordem: 'asc'
+            }
+        }
           }
         },
         categoria: true,
@@ -363,75 +388,93 @@ const selectServicosPorPrestador = async (prestadorId) => {
 }
 
 /**
- * Buscar serviços do contratante com paginação
+ * busca serviços por contratante com paradas
  */
-const selectServicosPorContratante = async (idContratante, page = 1, limit = 10) => {
+const selectServicosPorContratante = async (id_contratante, page = 1, limit = 10) => {
   try {
-    const skip = (page - 1) * limit;
+    const skip = (page - 1) * limit
     
-    return await prisma.servico.findMany({
-      where: { id_contratante: idContratante },
+    const servicos = await prisma.servico.findMany({
+      where: {
+        id_contratante: id_contratante
+      },
       include: {
-        categoria: true,
-        localizacao: true,
+        contratante: {
+          include: {
+            usuario: true
+          }
+        },
         prestador: {
           include: {
-            usuario: {
-              select: {
-                nome: true,
-                email: true
-              }
-            }
+            usuario: true
+          }
+        },
+        categoria: true,
+        localizacao: true,
+        pagamentos: true,
+        paradas: {
+          orderBy: {
+            ordem: 'asc'
           }
         }
       },
-      orderBy: { 
+      orderBy: {
         data_solicitacao: 'desc'
       },
       skip: skip,
       take: parseInt(limit)
-    });
+    })
+
+    return servicos
   } catch (error) {
-    console.error('Erro ao buscar serviços do contratante:', error);
-    throw error;
+    console.error("Erro ao buscar serviços por contratante:", error)
+    return false
   }
 }
 
 /**
- * Buscar serviços do contratante por status
+ * Busca serviços por contratante e status com paradas
  */
-const selectServicosPorContratanteEStatus = async (idContratante, status, page = 1, limit = 10) => {
+const selectServicosPorContratanteEStatus = async (id_contratante, status, page = 1, limit = 10) => {
   try {
-    const skip = (page - 1) * limit;
+    const skip = (page - 1) * limit
     
-    return await prisma.servico.findMany({
-      where: { 
-        id_contratante: idContratante,
+    const servicos = await prisma.servico.findMany({
+      where: {
+        id_contratante: id_contratante,
         status: status
       },
       include: {
-        categoria: true,
-        localizacao: true,
+        contratante: {
+          include: {
+            usuario: true
+          }
+        },
         prestador: {
           include: {
-            usuario: {
-              select: {
-                nome: true,
-                email: true
-              }
-            }
+            usuario: true
+          }
+        },
+        categoria: true,
+        localizacao: true,
+        pagamentos: true,
+        paradas: {
+          orderBy: {
+            ordem: 'asc'
           }
         }
       },
-      orderBy: { 
+      orderBy: {
         data_solicitacao: 'desc'
       },
       skip: skip,
       take: parseInt(limit)
-    });
+    })
+
+    return servicos
   } catch (error) {
-    console.error('Erro ao buscar serviços do contratante por status:', error);
-    throw error;
+    console.error("Erro ao buscar serviços por contratante e status:", error)
+    return false
   }
 }
 

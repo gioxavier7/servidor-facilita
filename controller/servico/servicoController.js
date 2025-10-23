@@ -20,9 +20,10 @@ const CalculoValorService = require('../../utils/calcularValorService')
 const carteiraDAO = require('../../model/dao/carteira')
 const transacaoDAO = require('../../model/dao/transacaoCarteira')
 const pagamentoDAO = require('../../model/dao/pagamento')
+const servicoParadasDAO = require('../../model/dao/parada')
 
 /**
- *cadastrar um novo serviço (APENAS CONTRATANTES) - ATUALIZADO
+ * cadastrar um novo serviço com paradas (APENAS CONTRATANTES) - ATUALIZADO
  */
 const cadastrarServico = async (req, res) => {
   try {
@@ -30,7 +31,7 @@ const cadastrarServico = async (req, res) => {
       return res.status(415).json({ status_code: 415, message: 'Content-type inválido. Use application/json' })
     }
 
-    //verifica se é contratante
+    // verifica se é contratante
     if (!req.user || req.user.tipo_conta !== 'CONTRATANTE') {
       return res.status(403).json({ 
         status_code: 403, 
@@ -46,7 +47,10 @@ const cadastrarServico = async (req, res) => {
       origem_lat,
       origem_lng, 
       destino_lat,
-      destino_lng
+      destino_lng,
+      origem_endereco,
+      destino_endereco,
+      paradas = [] // array de paradas
     } = req.body
 
     if (!descricao || !id_categoria) {
@@ -54,6 +58,27 @@ const cadastrarServico = async (req, res) => {
         status_code: 400, 
         message: 'Campos obrigatórios: descricao, id_categoria' 
       })
+    }
+
+    // Validação das coordenadas básicas
+    if (!origem_lat || !origem_lng || !destino_lat || !destino_lng) {
+      return res.status(400).json({ 
+        status_code: 400, 
+        message: 'Coordenadas de origem e destino são obrigatórias' 
+      })
+    }
+
+    // Validação das paradas (se fornecidas)
+    if (paradas && Array.isArray(paradas)) {
+      for (let i = 0; i < paradas.length; i++) {
+        const parada = paradas[i]
+        if (!parada.lat || !parada.lng) {
+          return res.status(400).json({ 
+            status_code: 400, 
+            message: `Parada ${i + 1} deve ter lat e lng` 
+          })
+        }
+      }
     }
 
     const contratante = await contratanteDAO.selectContratanteByUsuarioId(req.user.id)
@@ -64,23 +89,25 @@ const cadastrarServico = async (req, res) => {
       })
     }
 
-    // CALCULAR VALOR AUTOMATICAMENTE
+    // CALCULAR VALOR AUTOMATICAMENTE COM PARADAS
     const calculoValor = await CalculoValorService.calcularValorServico({
       id_categoria,
       valor_adicional,
       origem_lat,
       origem_lng,
       destino_lat,
-      destino_lng
+      destino_lng,
+      paradas
     })
 
+    // CRIAR O SERVIÇO
     const novoServico = await servicoDAO.insertServico({
       id_contratante: contratante.id,
       id_prestador: null,
       id_categoria: id_categoria,
       descricao,
       id_localizacao: id_localizacao || null,
-      valor: calculoValor.valor_total, // valor calculado automaticamente
+      valor: calculoValor.valor_total,
       status: statusServico.PENDENTE
     })
 
@@ -88,7 +115,54 @@ const cadastrarServico = async (req, res) => {
       return res.status(500).json({ status_code: 500, message: 'Erro ao cadastrar serviço' })
     }
 
-    //adicionar detalhes do cálculo na resposta
+    // SALVAR AS PARADAS NO BANCO (origem + paradas + destino)
+    if (paradas && paradas.length >= 0) {
+      try {
+        const todasParadas = [
+          // ORIGEM
+          {
+            id_servico: novoServico.id,
+            ordem: 0,
+            tipo: 'origem',
+            lat: origem_lat,
+            lng: origem_lng,
+            descricao: 'Origem',
+            endereco_completo: origem_endereco || null
+          },
+          // PARADAS INTERMEDIÁRIAS
+          ...paradas.map((parada, index) => ({
+            id_servico: novoServico.id,
+            ordem: index + 1,
+            tipo: 'parada',
+            lat: parada.lat,
+            lng: parada.lng,
+            descricao: parada.descricao || `Parada ${index + 1}`,
+            endereco_completo: parada.endereco_completo || null
+          })),
+          // DESTINO
+          {
+            id_servico: novoServico.id,
+            ordem: paradas.length + 1,
+            tipo: 'destino',
+            lat: destino_lat,
+            lng: destino_lng,
+            descricao: 'Destino',
+            endereco_completo: destino_endereco || null
+          }
+        ]
+
+        // inserir todas as paradas no banco
+        const paradasInseridas = await servicoParadasDAO.insertParadas(todasParadas)
+        
+        if (paradasInseridas) {
+          novoServico.paradas = paradasInseridas
+        }
+      } catch (error) {
+        console.error('Erro ao salvar paradas:', error)
+      }
+    }
+
+    // adicionar detalhes do cálculo na resposta
     novoServico.detalhes_valor = calculoValor
 
     res.status(201).json({ 
@@ -205,7 +279,7 @@ const deletarServico = async (req, res) => {
 }
 
 /**
- * Listar todos os serviços (COM FILTROS POR TIPO DE USUÁRIO)
+ * listar todos os serviços (COM FILTROS POR TIPO DE USUÁRIO)
  */
 const listarServicos = async (req, res) => {
   try {
@@ -221,6 +295,22 @@ const listarServicos = async (req, res) => {
         })
       }
       servicos = await servicoDAO.selectServicosPorContratante(contratante.id)
+      
+      //formatar serviços do contratante 
+      if (servicos && Array.isArray(servicos)) {
+        servicos = servicos.map(servico => ({
+          ...servico,
+          paradas: servico.paradas ? servico.paradas.map(parada => ({
+            id: parada.id,
+            ordem: parada.ordem,
+            tipo: parada.tipo,
+            lat: parada.lat?.toNumber(),
+            lng: parada.lng?.toNumber(),
+            descricao: parada.descricao,
+            endereco_completo: parada.endereco_completo
+          })) : []
+        }))
+      }
     } 
     // PRESTADORES tem serviços disponíveis + seus serviços aceitos
     else if (req.user.tipo_conta === 'PRESTADOR') {
@@ -238,14 +328,59 @@ const listarServicos = async (req, res) => {
         servicoDAO.selectServicosDisponiveis(),
         servicoDAO.selectServicosPorPrestador(prestador.id) 
       ])
+
+      //formatar serviços disponíveis
+      const disponiveisFormatados = disponiveis ? disponiveis.map(servico => ({
+        ...servico,
+        paradas: servico.paradas ? servico.paradas.map(parada => ({
+          id: parada.id,
+          ordem: parada.ordem,
+          tipo: parada.tipo,
+          lat: parada.lat?.toNumber(),
+          lng: parada.lng?.toNumber(),
+          descricao: parada.descricao,
+          endereco_completo: parada.endereco_completo
+        })) : []
+      })) : []
+
+      // formatar meus serviços
+      const meusServicosFormatados = meusServicos ? meusServicos.map(servico => ({
+        ...servico,
+        paradas: servico.paradas ? servico.paradas.map(parada => ({
+          id: parada.id,
+          ordem: parada.ordem,
+          tipo: parada.tipo,
+          lat: parada.lat?.toNumber(),
+          lng: parada.lng?.toNumber(),
+          descricao: parada.descricao,
+          endereco_completo: parada.endereco_completo
+        })) : []
+      })) : []
+
       servicos = {
-        disponiveis: disponiveis || [],
-        meus_servicos: meusServicos || []
+        disponiveis: disponiveisFormatados,
+        meus_servicos: meusServicosFormatados
       }
     }
     // ADMIN pode ver todos
     else {
       servicos = await servicoDAO.selectAllServico()
+      
+      // Formatar todos os serviços com paradas
+      if (servicos && Array.isArray(servicos)) {
+        servicos = servicos.map(servico => ({
+          ...servico,
+          paradas: servico.paradas ? servico.paradas.map(parada => ({
+            id: parada.id,
+            ordem: parada.ordem,
+            tipo: parada.tipo,
+            lat: parada.lat?.toNumber(),
+            lng: parada.lng?.toNumber(),
+            descricao: parada.descricao,
+            endereco_completo: parada.endereco_completo
+          })) : []
+        }))
+      }
     }
 
     if (!servicos || (Array.isArray(servicos) && servicos.length === 0)) {
@@ -283,7 +418,7 @@ const buscarServicoPorId = async (req, res) => {
       })
     }
 
-    //apenas dono ou prestador atribuído podem ver
+    // apenas dono ou prestador atribuído podem ver
     const contratante = await contratanteDAO.selectContratanteByUsuarioId(req.user.id)
     const isDono = servico.id_contratante === contratante?.id
     const isPrestadorAtribuido = servico.id_prestador === req.user.id
@@ -295,7 +430,23 @@ const buscarServicoPorId = async (req, res) => {
       })
     }
 
-    res.status(200).json({ status_code: 200, data: servico })
+    //formata serviço com paradas
+    const servicoFormatado = {
+      ...servico,
+      paradas: servico.paradas ? servico.paradas.map(parada => ({
+        id: parada.id,
+        ordem: parada.ordem,
+        tipo: parada.tipo,
+        lat: parada.lat?.toNumber(),
+        lng: parada.lng?.toNumber(),
+        descricao: parada.descricao,
+        endereco_completo: parada.endereco_completo,
+        tempo_estimado_chegada: parada.tempo_estimado_chegada,
+        data_criacao: parada.data_criacao
+      })) : []
+    }
+
+    res.status(200).json({ status_code: 200, data: servicoFormatado })
   } catch (error) {
     console.error('Erro ao buscar serviço por ID:', error)
     res.status(500).json({ 
@@ -327,9 +478,53 @@ const listarServicosDisponiveis = async (req, res) => {
       })
     }
 
+    // formatar resposta
+    const servicosFormatados = servicos.map(servico => ({
+      id: servico.id,
+      descricao: servico.descricao,
+      status: servico.status,
+      valor: servico.valor ? servico.valor.toNumber() : null,
+      data_solicitacao: servico.data_solicitacao,
+      tempo_estimado: servico.tempo_estimado,
+      categoria: servico.categoria ? {
+        id: servico.categoria.id,
+        nome: servico.categoria.nome,
+        icone: servico.categoria.icone
+      } : null,
+      localizacao: servico.localizacao ? {
+        id: servico.localizacao.id,
+        endereco: servico.localizacao.endereco,
+        cidade: servico.localizacao.cidade,
+        estado: servico.localizacao.estado
+      } : null,
+      contratante: servico.contratante ? {
+        id: servico.contratante.id,
+        usuario: {
+          nome: servico.contratante.usuario.nome,
+          email: servico.contratante.usuario.email
+        }
+      } : null,
+      paradas: servico.paradas ? servico.paradas.map(parada => ({
+        id: parada.id,
+        ordem: parada.ordem,
+        tipo: parada.tipo,
+        lat: parada.lat.toNumber(),
+        lng: parada.lng.toNumber(),
+        descricao: parada.descricao,
+        endereco_completo: parada.endereco_completo
+      })) : [],
+      // informação resumida
+      resumo_paradas: {
+        total: servico.paradas ? servico.paradas.length : 0,
+        origem: servico.paradas?.find(p => p.tipo === 'origem')?.descricao || 'Origem',
+        destino: servico.paradas?.find(p => p.tipo === 'destino')?.descricao || 'Destino',
+        paradas_intermediarias: servico.paradas ? servico.paradas.filter(p => p.tipo === 'parada').length : 0
+      }
+    }))
+
     res.status(200).json({ 
       status_code: 200, 
-      data: servicos 
+      data: servicosFormatados 
     })
   } catch (error) {
     console.error(error)
@@ -340,6 +535,7 @@ const listarServicosDisponiveis = async (req, res) => {
   }
 }
 
+//aceitar um serviço (prestador)
 const aceitarServico = async (req, res) => {
   try {
     if (!req.user || req.user.tipo_conta !== 'PRESTADOR') {
@@ -521,7 +717,7 @@ const listarMeusServicos = async (req, res) => {
 }
 
 /**
- *listar pedidos/histórico de serviços do contratante autenticado
+ * listar pedidos/histórico de serviços do contratante autenticado
  */
 const listarPedidosContratante = async (req, res) => {
   try {
@@ -535,7 +731,7 @@ const listarPedidosContratante = async (req, res) => {
 
     const { status, page = 1, limit = 10 } = req.query
 
-    //busca o perfil do contratante
+    // busca o perfil do contratante
     const contratante = await contratanteDAO.selectContratanteByUsuarioId(req.user.id)
     
     if (!contratante) {
@@ -545,10 +741,10 @@ const listarPedidosContratante = async (req, res) => {
       })
     }
 
-    //busca os serviços do contratante com possíveis filtros
+    // busca os serviços do contratante com possíveis filtros
     let servicos
     if (status) {
-      //valida se o status é válido
+      // valida se o status é válido
       if (!Object.values(statusServico).includes(status)) {
         return res.status(400).json({
           status_code: 400,
@@ -576,12 +772,12 @@ const listarPedidosContratante = async (req, res) => {
       })
     }
 
-    //resposta com os campos corretos do schema
+    // resposta com os campos
     const pedidosFormatados = servicos.map(servico => ({
       id: servico.id,
       descricao: servico.descricao,
       status: servico.status,
-      valor: servico.valor ? servico.valor.toNumber() : null, //decimal para number
+      valor: servico.valor ? servico.valor.toNumber() : null,
       data_solicitacao: servico.data_solicitacao,
       data_conclusao: servico.data_conclusao,
       categoria: servico.categoria ? {
@@ -600,10 +796,20 @@ const listarPedidosContratante = async (req, res) => {
           nome: servico.prestador.usuario.nome,
           email: servico.prestador.usuario.email
         }
-      } : null
+      } : null,
+      paradas: servico.paradas ? servico.paradas.map(parada => ({
+        id: parada.id,
+        ordem: parada.ordem,
+        tipo: parada.tipo,
+        lat: parada.lat.toNumber(), // decimal para number
+        lng: parada.lng.toNumber(), // dcimal para number
+        descricao: parada.descricao,
+        endereco_completo: parada.endereco_completo,
+        tempo_estimado_chegada: parada.tempo_estimado_chegada
+      })) : []
     }))
 
-    //paginação
+    // paginação
     const totalPedidos = await servicoDAO.countServicosPorContratante(contratante.id)
     const totalPages = Math.ceil(totalPedidos / parseInt(limit))
 
@@ -643,7 +849,7 @@ const buscarPedidoContratante = async (req, res) => {
       })
     }
 
-    //verifica se é contratante
+    // verifica se é contratante
     if (!req.user || req.user.tipo_conta !== 'CONTRATANTE') {
       return res.status(403).json({ 
         status_code: 403, 
@@ -651,7 +857,8 @@ const buscarPedidoContratante = async (req, res) => {
       })
     }
 
-    const servico = await servicoDAO.selectByIdServico(Number(id))
+    //busca o serviço com as paradas
+    const servico = await servicoDAO.selectServicoWithParadas(Number(id))
 
     if (!servico) {
       return res.status(404).json({ 
@@ -660,7 +867,7 @@ const buscarPedidoContratante = async (req, res) => {
       })
     }
 
-    //verifica se o pedido pertence ao contratante
+    // verifica se o pedido pertence ao contratante
     const contratante = await contratanteDAO.selectContratanteByUsuarioId(req.user.id)
     if (servico.id_contratante !== contratante.id) {
       return res.status(403).json({ 
@@ -669,7 +876,7 @@ const buscarPedidoContratante = async (req, res) => {
       })
     }
 
-    //resposta com detalhes completos usando campos corretos
+    // resposta com detalhes completos
     const pedidoDetalhado = {
       id: servico.id,
       descricao: servico.descricao,
@@ -677,10 +884,13 @@ const buscarPedidoContratante = async (req, res) => {
       valor: servico.valor ? servico.valor.toNumber() : null,
       data_solicitacao: servico.data_solicitacao,
       data_conclusao: servico.data_conclusao,
+      data_inicio: servico.data_inicio,
+      tempo_estimado: servico.tempo_estimado,
       categoria: servico.categoria ? {
         id: servico.categoria.id,
         nome: servico.categoria.nome,
-        descricao: servico.categoria.descricao
+        descricao: servico.categoria.descricao,
+        icone: servico.categoria.icone
       } : null,
       localizacao: servico.localizacao ? {
         id: servico.localizacao.id,
@@ -696,7 +906,18 @@ const buscarPedidoContratante = async (req, res) => {
           nome: servico.prestador.usuario.nome,
           email: servico.prestador.usuario.email
         }
-      } : null
+      } : null,
+      paradas: servico.paradas ? servico.paradas.map(parada => ({
+        id: parada.id,
+        ordem: parada.ordem,
+        tipo: parada.tipo,
+        lat: parada.lat.toNumber(), //decimal para number
+        lng: parada.lng.toNumber(), //decimal para number
+        descricao: parada.descricao,
+        endereco_completo: parada.endereco_completo,
+        tempo_estimado_chegada: parada.tempo_estimado_chegada,
+        data_criacao: parada.data_criacao
+      })) : []
     }
 
     res.status(200).json({ 
@@ -852,7 +1073,7 @@ const filtrarPorCategoria = async (req, res) => {
 }
 
 /**
- * criar serviço a partir de categoria pré-defina
+ * criar serviço a partir de categoria pré-definida
  */
 const criarServicoPorCategoria = async (req, res) => {
   try {
@@ -872,7 +1093,10 @@ const criarServicoPorCategoria = async (req, res) => {
       origem_lat, 
       origem_lng, 
       destino_lat, 
-      destino_lng 
+      destino_lng,
+      origem_endereco,
+      destino_endereco,
+      paradas = []
     } = req.body
 
     if (!categoriaId) {
@@ -880,6 +1104,27 @@ const criarServicoPorCategoria = async (req, res) => {
         status_code: 400,
         message: 'ID da categoria é obrigatório'
       })
+    }
+
+    // validação das coordenadas básicas
+    if (!origem_lat || !origem_lng || !destino_lat || !destino_lng) {
+      return res.status(400).json({ 
+        status_code: 400, 
+        message: 'Coordenadas de origem e destino são obrigatórias' 
+      })
+    }
+
+    // validação das paradas (se fornecidas)
+    if (paradas && Array.isArray(paradas)) {
+      for (let i = 0; i < paradas.length; i++) {
+        const parada = paradas[i]
+        if (!parada.lat || !parada.lng) {
+          return res.status(400).json({ 
+            status_code: 400, 
+            message: `Parada ${i + 1} deve ter lat e lng` 
+          })
+        }
+      }
     }
 
     // busca perfil do contratante
@@ -899,13 +1144,15 @@ const criarServicoPorCategoria = async (req, res) => {
       })
     }
 
+    // CALCULAR VALOR COM PARADAS
     const calculoValor = await CalculoValorService.calcularValorServico({
       id_categoria: categoria.id,
       valor_adicional: valor_adicional,
       origem_lat: origem_lat,
       origem_lng: origem_lng,
       destino_lat: destino_lat,
-      destino_lng: destino_lng
+      destino_lng: destino_lng,
+      paradas: paradas
     })
 
     // prepara dados do serviço
@@ -928,6 +1175,53 @@ const criarServicoPorCategoria = async (req, res) => {
       })
     }
 
+    // SALVAR AS PARADAS NO BANCO
+    if (paradas && paradas.length >= 0) {
+      try {
+        const todasParadas = [
+          // ORIGEM
+          {
+            id_servico: novoServico.id,
+            ordem: 0,
+            tipo: 'origem',
+            lat: origem_lat,
+            lng: origem_lng,
+            descricao: 'Origem',
+            endereco_completo: origem_endereco || null
+          },
+          // PARADAS INTERMEDIÁRIAs
+          ...paradas.map((parada, index) => ({
+            id_servico: novoServico.id,
+            ordem: index + 1,
+            tipo: 'parada',
+            lat: parada.lat,
+            lng: parada.lng,
+            descricao: parada.descricao || `Parada ${index + 1}`,
+            endereco_completo: parada.endereco_completo || null
+          })),
+          // DESTINO
+          {
+            id_servico: novoServico.id,
+            ordem: paradas.length + 1,
+            tipo: 'destino',
+            lat: destino_lat,
+            lng: destino_lng,
+            descricao: 'Destino',
+            endereco_completo: destino_endereco || null
+          }
+        ]
+
+        // inserir todas as paradas no banco
+        const paradasInseridas = await servicoParadasDAO.insertParadas(todasParadas)
+        
+        if (paradasInseridas) {
+          novoServico.paradas = paradasInseridas
+        }
+      } catch (error) {
+        console.error('Erro ao salvar paradas:', error)
+      }
+    }
+
     res.status(201).json({
       status_code: 201,
       message: `Serviço de ${categoria.nome} criado com sucesso`,
@@ -945,8 +1239,10 @@ const criarServicoPorCategoria = async (req, res) => {
           valor_adicional: calculoValor.valor_adicional,
           valor_distancia: calculoValor.valor_distancia,
           valor_total: calculoValor.valor_total,
-          distancia_km: calculoValor.detalhes.distancia_km
-        }
+          distancia_km: calculoValor.detalhes?.distancia_km,
+          total_paradas: paradas.length
+        },
+        paradas: novoServico.paradas || []
       }
     })
 

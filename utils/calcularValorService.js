@@ -58,7 +58,7 @@ class CalculoValorService {
     if (!id_categoria) return 15.00 //vlor mínimo padrão
     
     try {
-      const categoria = await categoriaDAO.selectCategoriaById(id_categoria)
+      const categoria = await categoriaDAO.selectByIdCategoria(id_categoria)
       
       if (categoria && categoria.preco_base) {
         const valorBanco = Number(categoria.preco_base)
