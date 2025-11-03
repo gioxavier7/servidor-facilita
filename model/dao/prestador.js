@@ -2,7 +2,7 @@
  * DAO responsável pelo CRUD de prestadores usando Prisma
  * Data: 16/09/2025
  * Dev: Giovanna
- * Versão: 1.1
+ * Versão: 2.0 - Atualizado para novo schema
  */
 
 const { PrismaClient } = require('@prisma/client')
@@ -23,7 +23,7 @@ const insertPrestador = async (prestador) => {
     }
 
     const result = await prisma.$transaction(async (prisma) => {
-      //verificação se usuário existe e não possui outro tipo de conta
+      // verificação se usuário existe e não possui outro tipo de conta
       const usuarioExistente = await prisma.usuario.findUnique({
         where: { id: prestador.id_usuario }
       });
@@ -36,13 +36,13 @@ const insertPrestador = async (prestador) => {
         throw new Error(`Este usuário já possui perfil de ${usuarioExistente.tipo_conta}.`);
       }
 
-      //atualiza o tipo_conta do usuário primeiro
+      // atualiza o tipo_conta do usuário primeiro
       await prisma.usuario.update({
         where: { id: prestador.id_usuario },
         data: { tipo_conta: 'PRESTADOR' }
       });
 
-      //cria o prestador
+      // cria o prestador
       const novoPrestador = await prisma.prestador.create({
         data: {
           id_usuario: prestador.id_usuario,
@@ -56,12 +56,33 @@ const insertPrestador = async (prestador) => {
               data_validade: doc.data_validade ? new Date(doc.data_validade) : null,
               arquivo_url: doc.arquivo_url || null
             }))
-          }
+          },
+          // Adiciona CNH se fornecida
+          ...(prestador.cnh && {
+            cnh: {
+              create: {
+                numero_cnh: prestador.cnh.numero_cnh,
+                categoria: prestador.cnh.categoria,
+                validade: new Date(prestador.cnh.validade),
+                possui_ear: prestador.cnh.possui_ear || false
+              }
+            }
+          }),
+          // Adiciona modalidades
+          ...(prestador.modalidades && prestador.modalidades.length > 0 && {
+            modalidades: {
+              create: prestador.modalidades.map(modalidade => ({
+                tipo: modalidade
+              }))
+            }
+          })
         },
         include: {
           usuario: true,
           localizacao: true,
-          documento: true
+          documento: true,
+          cnh: true,
+          modalidades: true
         }
       });
 
@@ -84,7 +105,13 @@ const insertPrestador = async (prestador) => {
 const selectAllPrestadores = async () => {
   try {
     return await prisma.prestador.findMany({
-      include: { usuario: true, localizacao: true, documento: true }
+      include: { 
+        usuario: true, 
+        localizacao: true, 
+        documento: true,
+        cnh: true,
+        modalidades: true
+      }
     })
   } catch (error) {
     console.error('Erro ao listar prestadores:', error)
@@ -97,7 +124,13 @@ const selectPrestadorById = async (id) => {
   try {
     const prestador = await prisma.prestador.findUnique({
       where: { id },
-      include: { usuario: true, localizacao: true, documento: true }
+      include: { 
+        usuario: true, 
+        localizacao: true, 
+        documento: true,
+        cnh: true,
+        modalidades: true
+      }
     })
     if (!prestador) throw new Error('Prestador não encontrado.')
     return prestador
@@ -122,12 +155,20 @@ const updatePrestador = async (id, dados) => {
             data_validade: doc.data_validade ? new Date(doc.data_validade) : null,
             arquivo_url: doc.arquivo_url || null
           }))
+        } : undefined,
+        modalidades: dados.modalidades ? {
+          deleteMany: {},
+          create: dados.modalidades.map(modalidade => ({
+            tipo: modalidade
+          }))
         } : undefined
       },
       include: {
         usuario: true,
         localizacao: true,
-        documento: true
+        documento: true,
+        cnh: true,
+        modalidades: true
       }
     })
     return prestadorAtualizado
@@ -141,8 +182,14 @@ const updatePrestador = async (id, dados) => {
 // ================= DELETAR PRESTADOR =================
 const deletePrestador = async (id) => {
   try {
-    // deleta documento vinculados
+    // deleta documentos vinculados
     await prisma.documento.deleteMany({ where: { id_prestador: id } })
+    
+    // deleta CNH vinculada
+    await prisma.cnh.deleteMany({ where: { id_prestador: id } })
+    
+    // deleta modalidades vinculadas
+    await prisma.modalidade_prestador.deleteMany({ where: { id_prestador: id } })
 
     // remove relação N:N com localizacao
     await prisma.prestador.update({ where: { id }, data: { localizacao: { set: [] } } })
@@ -158,6 +205,26 @@ const deletePrestador = async (id) => {
     throw new Error('Erro interno ao deletar prestador.')
   }
 }
+
+// ================= ADICIONAR MODALIDADES =================
+const adicionarModalidades = async (id_prestador, modalidades) => {
+  try {
+    const modalidadesCriadas = await prisma.modalidade_prestador.createMany({
+      data: modalidades.map(modalidade => ({
+        id_prestador,
+        tipo: modalidade
+      })),
+      skipDuplicates: true // Evita duplicatas
+    });
+
+    return await prisma.modalidade_prestador.findMany({
+      where: { id_prestador }
+    });
+  } catch (error) {
+    console.error("Erro ao adicionar modalidades:", error);
+    throw new Error('Erro interno ao adicionar modalidades.');
+  }
+};
 
 const selectPrestadorByUsuarioId = async (usuarioId) => {
   try {
@@ -182,7 +249,7 @@ const selectPrestadorByUsuarioId = async (usuarioId) => {
  */
 const atualizarLocaisPrestador = async (usuarioId, locaisIds) => {
   try {
-    //busca o prestador
+    // busca o prestador
     const prestador = await prisma.prestador.findUnique({
       where: { id_usuario: usuarioId }
     });
@@ -279,11 +346,14 @@ const selectPrestadorCompletoByUsuarioId = async (usuarioId) => {
           select: {
             nome: true,
             email: true,
-            telefone: true
+            telefone: true,
+            foto_perfil: true
           }
         },
         localizacao: true,
-        documento: true
+        documento: true,
+        cnh: true,
+        modalidades: true
       }
     });
   } catch (error) {
@@ -298,6 +368,7 @@ module.exports = {
   selectPrestadorById,
   updatePrestador,
   deletePrestador,
+  adicionarModalidades,
   selectPrestadorByUsuarioId,
   atualizarLocaisPrestador,
   atualizarDocumentosPrestador,

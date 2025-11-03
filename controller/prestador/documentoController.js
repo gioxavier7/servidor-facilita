@@ -2,7 +2,7 @@
  * objetivo: controller responsável pelo CRUD de documentos
  * data: 16/09/2025
  * dev: giovanna
- * versão: 1.0
+ * versão: 2.0 - Atualizado para novo schema
  */
 
 const documentoDAO = require('../../model/dao/documento')
@@ -44,6 +44,17 @@ const cadastrarDocumento = async function(req, res) {
   }
 }
 
+//========== LISTAR DOCUMENTOS POR PRESTADOR ==========
+const listarDocumentosPorPrestador = async function(req, res) {
+  try {
+    const id_prestador = parseInt(req.params.id_prestador)
+    const documentos = await documentoDAO.selectDocumentosByPrestador(id_prestador)
+    return res.status(200).json(documentos)
+  } catch (error) {
+    console.error(error)
+    return res.status(500).json({ message: 'Erro ao listar documentos.' })
+  }
+}
 
 //========== LISTAR TODOS DOCUMENTOS ==========
 const listarDocumentos = async function(req, res) {
@@ -117,6 +128,7 @@ const deletarDocumento = async function(req, res) {
 
 module.exports = {
   cadastrarDocumento,
+  listarDocumentosPorPrestador,
   listarDocumentos,
   buscarDocumento,
   atualizarDocumento,

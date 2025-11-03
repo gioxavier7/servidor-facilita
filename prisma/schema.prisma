@@ -40,7 +40,7 @@ model servico_parada {
   lat              Decimal  @db.Decimal(10, 8)
   lng              Decimal  @db.Decimal(11, 8)
   descricao        String?  @db.VarChar(255)
-  endereco_completo String? // wndereço completo para exibição
+  endereco_completo String? // endereço completo para exibição
   tempo_estimado_chegada Int? // tempo estimado para chegar nesta parada (em minutos)
   data_criacao     DateTime @default(now())
 
@@ -168,7 +168,6 @@ model avaliacao {
   comentario     String?   @db.Text
   data_avaliacao DateTime? @default(now())
 
-  // ADICIONE ESTAS RELAÇÕES
   servico        servico     @relation(fields: [id_servico], references: [id])
   contratante    contratante @relation(fields: [id_contratante], references: [id])
   prestador      prestador   @relation(fields: [id_prestador], references: [id])
@@ -267,10 +266,38 @@ model documento {
   @@index([id_prestador], map: "Documento_id_prestador_fkey")
 }
 
+model cnh {
+  id                Int        @id @default(autoincrement())
+  id_prestador      Int
+  numero_cnh        String     @unique
+  categoria         categoriaCNH
+  validade          DateTime
+  possui_ear        Boolean    @default(false)
+  pontuacao_atual   Int?       @default(0)
+  data_criacao      DateTime   @default(now())
+  data_atualizacao  DateTime   @updatedAt
+  prestador         prestador  @relation(fields: [id_prestador], references: [id])
+
+  @@map("cnh")
+  @@index([id_prestador])
+}
+
+model modalidade_prestador {
+  id           Int           @id @default(autoincrement())
+  id_prestador Int
+  tipo         modalidade_transporte
+  prestador    prestador     @relation(fields: [id_prestador], references: [id])
+  
+  @@unique([id_prestador, tipo])
+  @@map("modalidade_prestador")
+}
+
 model prestador {
   id          Int           @id @default(autoincrement())
   id_usuario  Int           @unique(map: "Prestador_id_usuario_key")
   documento   documento[]
+  cnh         cnh[]
+  modalidades modalidade_prestador[]
   pagamento   pagamento[]
   usuario     usuario       @relation(fields: [id_usuario], references: [id], map: "Prestador_id_usuario_fkey")
   servico     servico[]
@@ -314,6 +341,7 @@ model usuario {
   recarga      recarga_carteira[]
 }
 
+// ENUMS
 enum statusServico {
   PENDENTE
   EM_ANDAMENTO
@@ -342,10 +370,33 @@ enum tipoTransacao {
 enum documento_tipo_documento {
   RG
   CPF
-  CNH_EAR
   TIPO_VEICULO
   MODELO_VEICULO
   ANO_VEICULO
+  SEGURO_VEICULO
+  COMPARTIMENTO_VEICULO
+  REVISAO_VEICULO
+  ANTECEDENTES_CRIMINAIS
+  CONTATO_EMERGENCIA
+}
+
+enum categoriaCNH {
+  A
+  B
+  C
+  D
+  E
+  AB
+  AC
+  AD
+  AE
+}
+
+enum modalidade_transporte {
+  MOTO
+  CARRO
+  BICICLETA
+  A_PE
 }
 
 enum contratante_necessidade {

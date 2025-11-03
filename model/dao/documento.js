@@ -2,7 +2,7 @@
  * objetivo: DAO responsável pelo CRUD de documentos usando Prisma
  * data: 16/09/2025
  * dev: giovanna
- * versão: 1.0
+ * versão: 2.0 - Atualizado para novo schema
  */
 
 const { PrismaClient } = require('@prisma/client')
@@ -41,6 +41,21 @@ const selectAllDocumentos = async () => {
     })
   } catch (error) {
     console.error("Erro ao listar documentos:", error)
+    return false
+  }
+}
+
+/**
+ * Busca documentos por prestador
+ */
+const selectDocumentosByPrestador = async (id_prestador) => {
+  try {
+    return await prisma.documento.findMany({
+      where: { id_prestador },
+      include: { prestador: true }
+    })
+  } catch (error) {
+    console.error("Erro ao buscar documentos por prestador:", error)
     return false
   }
 }
@@ -92,6 +107,7 @@ const deleteDocumento = async (id) => {
 module.exports = {
   insertDocumento,
   selectAllDocumentos,
+  selectDocumentosByPrestador,
   selectDocumentoById,
   updateDocumento,
   deleteDocumento
