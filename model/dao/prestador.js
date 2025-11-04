@@ -140,45 +140,6 @@ const selectPrestadorById = async (id) => {
   }
 }
 
-// ================= ATUALIZAR PRESTADOR =================
-const updatePrestador = async (id, dados) => {
-  try {
-    const prestadorAtualizado = await prisma.prestador.update({
-      where: { id },
-      data: {
-        localizacao: dados.localizacao ? { set: dados.localizacao.map(idLocal => ({ id: idLocal })) } : undefined,
-        documento: dados.documento ? {
-          deleteMany: {},
-          create: dados.documento.map(doc => ({
-            tipo_documento: doc.tipo_documento,
-            valor: doc.valor,
-            data_validade: doc.data_validade ? new Date(doc.data_validade) : null,
-            arquivo_url: doc.arquivo_url || null
-          }))
-        } : undefined,
-        modalidades: dados.modalidades ? {
-          deleteMany: {},
-          create: dados.modalidades.map(modalidade => ({
-            tipo: modalidade
-          }))
-        } : undefined
-      },
-      include: {
-        usuario: true,
-        localizacao: true,
-        documento: true,
-        cnh: true,
-        modalidades: true
-      }
-    })
-    return prestadorAtualizado
-  } catch (error) {
-    console.error("Erro ao atualizar prestador:", error)
-    if (error.code === 'P2025') throw new Error('Prestador não encontrado.')
-    throw new Error('Erro interno ao atualizar prestador.')
-  }
-}
-
 // ================= DELETAR PRESTADOR =================
 const deletePrestador = async (id) => {
   try {
@@ -244,50 +205,44 @@ const selectPrestadorByUsuarioId = async (usuarioId) => {
   }
 }
 
-/**
- * atualizar locais do prestador
- */
-const atualizarLocaisPrestador = async (usuarioId, locaisIds) => {
+// ================= ATUALIZAR LOCAIS PRESTADOR =================
+const atualizarLocaisPrestador = async (userId, locais) => {
   try {
-    // busca o prestador
-    const prestador = await prisma.prestador.findUnique({
-      where: { id_usuario: usuarioId }
+    // Primeiro busca o prestador pelo userId
+    const prestador = await prisma.prestador.findFirst({
+      where: { id_usuario: userId }
     });
 
     if (!prestador) {
       throw new Error('Prestador não encontrado');
     }
 
-    // atualiza os locais
-    await prisma.prestador.update({
+    // Atualiza os locais do prestador
+    const prestadorAtualizado = await prisma.prestador.update({
       where: { id: prestador.id },
       data: {
         localizacao: {
-          set: locaisIds.map(id => ({ id }))
+          set: locais.map(idLocal => ({ id: idLocal }))
         }
+      },
+      include: {
+        localizacao: true
       }
     });
 
-    // retorna os locais atualizados
-    return await prisma.localizacao.findMany({
-      where: {
-        id: { in: locaisIds }
-      }
-    });
-
+    return prestadorAtualizado.localizacao;
   } catch (error) {
-    console.error('Erro ao atualizar locais do prestador:', error);
-    throw error;
+    console.error("Erro ao atualizar locais do prestador:", error);
+    throw new Error('Erro ao atualizar locais do prestador');
   }
-};
+}
 
-/**
- * Atualizar documentos do prestador
- */
-const atualizarDocumentosPrestador = async (usuarioId, documentos) => {
+// ================= ATUALIZAR DOCUMENTOS PRESTADOR =================
+const atualizarDocumentosPrestador = async (userId, documentos) => {
   try {
-    const prestador = await prisma.prestador.findUnique({
-      where: { id_usuario: usuarioId },
+    // Primeiro busca o prestador pelo userId
+    const prestador = await prisma.prestador.findFirst({
+      where: { id_usuario: userId },
       include: { documento: true }
     });
 
@@ -298,41 +253,84 @@ const atualizarDocumentosPrestador = async (usuarioId, documentos) => {
     const resultados = [];
 
     for (const doc of documentos) {
-      if (doc.id) {
-        if (doc.action === 'update' || doc.action === 'delete') {
-          const resultado = await prisma.documento.update({
-            where: { id: doc.id },
-            data: {
-              valor: doc.valor,
-              data_validade: doc.data_validade ? new Date(doc.data_validade) : null,
-              arquivo_url: doc.arquivo_url
-            }
-          });
-          resultados.push(resultado);
-        }
+      // Verifica se o documento já existe para este prestador
+      const documentoExistente = prestador.documento.find(
+        d => d.tipo_documento === doc.tipo_documento
+      );
+
+      if (documentoExistente) {
+        // Atualiza documento existente
+        const atualizado = await prisma.documento.update({
+          where: { id: documentoExistente.id },
+          data: {
+            valor: doc.valor,
+            data_validade: doc.data_validade ? new Date(doc.data_validade) : null,
+            arquivo_url: doc.arquivo_url
+          }
+        });
+        resultados.push(atualizado);
       } else {
-        if (doc.action === 'create') {
-          const novoDoc = await prisma.documento.create({
-            data: {
-              tipo_documento: doc.tipo_documento,
-              valor: doc.valor,
-              data_validade: doc.data_validade ? new Date(doc.data_validade) : null,
-              arquivo_url: doc.arquivo_url,
-              id_prestador: prestador.id
-            }
-          });
-          resultados.push(novoDoc);
-        }
+        // Cria novo documento
+        const novo = await prisma.documento.create({
+          data: {
+            tipo_documento: doc.tipo_documento,
+            valor: doc.valor,
+            data_validade: doc.data_validade ? new Date(doc.data_validade) : null,
+            arquivo_url: doc.arquivo_url,
+            id_prestador: prestador.id
+          }
+        });
+        resultados.push(novo);
       }
     }
 
     return resultados;
-
   } catch (error) {
-    console.error('Erro ao atualizar documentos do prestador:', error);
-    throw error;
+    console.error("Erro ao atualizar documentos do prestador:", error);
+    throw new Error('Erro ao atualizar documentos do prestador');
   }
-};
+}
+
+// ================= ATUALIZAR PRESTADOR COMPLETO =================
+const updatePrestador = async (id, dados) => {
+  try {
+    const prestadorAtualizado = await prisma.prestador.update({
+      where: { id },
+      data: {
+        localizacao: dados.localizacao ? { 
+          set: dados.localizacao.map(idLocal => ({ id: idLocal })) 
+        } : undefined,
+        documento: dados.documento ? {
+          deleteMany: {},
+          create: dados.documento.map(doc => ({
+            tipo_documento: doc.tipo_documento,
+            valor: doc.valor,
+            data_validade: doc.data_validade ? new Date(doc.data_validade) : null,
+            arquivo_url: doc.arquivo_url || null
+          }))
+        } : undefined,
+        modalidades: dados.modalidades ? {
+          deleteMany: {},
+          create: dados.modalidades.map(modalidade => ({
+            tipo: modalidade
+          }))
+        } : undefined
+      },
+      include: {
+        usuario: true,
+        localizacao: true,
+        documento: true,
+        cnh: true,
+        modalidades: true
+      }
+    })
+    return prestadorAtualizado
+  } catch (error) {
+    console.error("Erro ao atualizar prestador:", error)
+    if (error.code === 'P2025') throw new Error('Prestador não encontrado.')
+    throw new Error('Erro interno ao atualizar prestador.')
+  }
+}
 
 /**
  * buscar prestador por usuario ID com relacionamentos

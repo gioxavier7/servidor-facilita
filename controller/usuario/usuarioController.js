@@ -375,6 +375,7 @@ const buscarUsuario = async (req, res) => {
 };
 
 // ================= ATUALIZAR USUARIO =================
+// ================= ATUALIZAR USUARIO =================
 const atualizarPerfil = async (req, res) => {
   try {
     if (req.headers['content-type'] !== 'application/json') {
@@ -386,14 +387,14 @@ const atualizarPerfil = async (req, res) => {
 
     const userId = req.user.id;
     const { 
-      //dados usuário
+      // dados usuário
       nome, 
       email, 
       telefone, 
       senha_atual, 
       nova_senha,
       
-      //dados do tipo de conta
+      // dados do tipo de conta
       necessidade,
       id_localizacao,
       cpf,
@@ -412,12 +413,12 @@ const atualizarPerfil = async (req, res) => {
 
     const dadosAtualizacao = {};
 
-    // 1.atualização de dados básicos do usuário
+    // 1. atualização de dados básicos do usuário
     if (nome) dadosAtualizacao.nome = nome;
     if (email) dadosAtualizacao.email = email;
     if (telefone) dadosAtualizacao.telefone = telefone;
 
-    // 2.atualização de senha
+    // 2. atualização de senha
     if (nova_senha) {
       if (!senha_atual) {
         return res.status(400).json({
@@ -426,7 +427,7 @@ const atualizarPerfil = async (req, res) => {
         });
       }
       
-      //verifica senha atual
+      // verifica senha atual
       const senhaValida = await bcrypt.compare(senha_atual, usuarioAtual.senha_hash);
       if (!senhaValida) {
         return res.status(400).json({
@@ -435,11 +436,11 @@ const atualizarPerfil = async (req, res) => {
         });
       }
 
-      //hash da nova senha
+      // hash da nova senha
       dadosAtualizacao.senha_hash = await bcrypt.hash(nova_senha, 12);
     }
 
-    // 3.atualização  por tipo de conta
+    // 3. atualização por tipo de conta
     let perfilEspecifico = null;
 
     if (usuarioAtual.tipo_conta === 'CONTRATANTE') {
@@ -455,8 +456,11 @@ const atualizarPerfil = async (req, res) => {
       });
     }
 
-    // 4.atualiza dados do usuário
-    const usuarioAtualizado = await usuarioDAO.updateUsuario(userId, dadosAtualizacao);
+    // 4. atualiza dados do usuário (se houver dados para atualizar)
+    let usuarioAtualizado = usuarioAtual;
+    if (Object.keys(dadosAtualizacao).length > 0) {
+      usuarioAtualizado = await usuarioDAO.updateUsuario(userId, dadosAtualizacao);
+    }
 
     res.status(200).json({
       status_code: 200,
@@ -510,12 +514,15 @@ const atualizarPerfilPrestador = async (userId, dados) => {
   
   const resultado = {};
   
-  //atualizar locais do prestador
+  // atualizar locais do prestador
   if (locais && Array.isArray(locais)) {
     resultado.locais = await prestadorDAO.atualizarLocaisPrestador(userId, locais);
   }
   
-  //atualizar documentos do prestador if (documentos && Array.isArray(documentos)) { resultado.documentos = await prestadorDAO.atualizarDocumentosPrestador(userId, documentos); }
+  // atualizar documentos do prestador 
+  if (documentos && Array.isArray(documentos)) { 
+    resultado.documentos = await prestadorDAO.atualizarDocumentosPrestador(userId, documentos); 
+  }
   
   return Object.keys(resultado).length > 0 ? resultado : null;
 };
