@@ -610,7 +610,7 @@ const solicitarRecuperacaoSenha = async (req, res) => {
   try {
     const { email, telefone } = req.body;
     
-    // validacao básica
+    // Validação básica
     if (!email && !telefone) {
       return res.status(400).json({ 
         error: 'E-mail ou telefone é obrigatório' 
@@ -618,46 +618,56 @@ const solicitarRecuperacaoSenha = async (req, res) => {
     }
 
     let usuario = null;
+    let campoBusca = '';
 
-    // busca usuário por email ou telefone
+    // Busca usuário por email ou telefone
     if (email) {
-      usuario = await usuarioDAO.selectByEmail(email).catch(() => null);
+      usuario = await usuarioDAO.selectByEmail(email);
+      campoBusca = 'email';
     } else if (telefone) {
-      usuario = await usuarioDAO.selectByTelefone(telefone).catch(() => null);
+      usuario = await usuarioDAO.selectByTelefone(telefone);
+      campoBusca = 'telefone';
     }
 
-    // return 200 por segurança
-    if (usuario) {
-      const codigo = Math.floor(10000 + Math.random() * 90000).toString();
-      const expira = new Date(Date.now() + 15 * 60 * 1000); // 15 min
-      
-      await usuarioDAO.criarCodigo(usuario.id, codigo, expira);
-
-      // envia por email (se email foi fornecido)
-      if (email && usuario.email) {
-        try {
-          await enviarEmail(usuario.email, 'Código de Recuperação - Facilita', {
-            text: `Seu código de recuperação é: ${codigo} (válido por 15 minutos).`,
-            html: buildOtpHtml(codigo),
-          });
-          console.log(`Código enviado por email para: ${usuario.email}`);
-        } catch (emailError) {
-          console.error('Erro no envio por email:', emailError.message);
-        }
-      }
-
-      // envia por SMS (se telefone foi fornecido)
-      if (telefone && usuario.telefone) {
-        try {
-          await enviarSMS(usuario.telefone, codigo);
-          console.log(`Código enviado por SMS para: ${usuario.telefone}`);
-        } catch (smsError) {
-          console.error('Erro no envio por SMS:', smsError.message);
-        }
-      }
-
-      console.log(`Código de recuperação gerado: ${codigo} para usuário: ${usuario.id}`);
+    // Se usuário não encontrado, ainda retorna 200 por segurança
+    if (!usuario) {
+      console.log(`Usuário não encontrado com ${campoBusca}:`, email || telefone);
+      return res.json({ 
+        message: 'Se seus dados estiverem cadastrados, você receberá um código em instantes.',
+        sucesso: true
+      });
     }
+
+    // Gera código e salva
+    const codigo = Math.floor(10000 + Math.random() * 90000).toString();
+    const expira = new Date(Date.now() + 15 * 60 * 1000); // 15 min
+    
+    await usuarioDAO.criarCodigo(usuario.id, codigo, expira);
+
+    // Envia por email (se email foi fornecido E usuário tem email)
+    if (email && usuario.email) {
+      try {
+        await enviarEmail(usuario.email, 'Código de Recuperação - Facilita', {
+          text: `Seu código de recuperação é: ${codigo} (válido por 15 minutos).`,
+          html: buildOtpHtml(codigo),
+        });
+        console.log(`Código enviado por email para: ${usuario.email}`);
+      } catch (emailError) {
+        console.error('Erro no envio por email:', emailError.message);
+      }
+    }
+
+    // Envia por SMS (se telefone foi fornecido E usuário tem telefone)
+    if (telefone && usuario.telefone) {
+      try {
+        await enviarSMS(usuario.telefone, codigo);
+        console.log(`Código enviado por SMS para: ${usuario.telefone}`);
+      } catch (smsError) {
+        console.error('Erro no envio por SMS:', smsError.message);
+      }
+    }
+
+    console.log(`Código de recuperação gerado: ${codigo} para usuário: ${usuario.id}`);
 
     return res.json({ 
       message: 'Se seus dados estiverem cadastrados, você receberá um código em instantes.',

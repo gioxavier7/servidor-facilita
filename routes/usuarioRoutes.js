@@ -7,8 +7,9 @@ const autenticarToken = require('../middleware/authMiddleware')
 router.post('/register', usuarioController.cadastrarUsuario)
 router.post('/login', usuarioController.login)
 
-// Recuperação de senha (pública)
+// Recuperação de senha (pública) - ADICIONE A ROTA AQUI
 router.post('/recuperar-senha', usuarioController.solicitarRecuperacaoSenha)
+router.post('/verificar-codigo', usuarioController.verificarCodigo)
 router.post('/redefinir-senha', usuarioController.redefinirSenha)
 
 // ================= ROTAS AUTENTICADAS =================

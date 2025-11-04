@@ -96,29 +96,28 @@ const selectByEmail = async (email) => {
         contratante: true
       }
     })
-    if (!usuario) throw new Error('Usuário não encontrado.')
+    if (!usuario) return null
     return usuario
   } catch (error) {
     console.error('Erro ao buscar usuário por email:', error)
-    throw new Error(error.message || 'Erro interno ao buscar usuário por email.')
+    return null
   }
 }
 
 // ================= BUSCAR USUÁRIO POR TELEFONE =================
 const selectByTelefone = async (telefone) => {
   try {
-    const usuario = await prisma.usuario.findUnique({
+    const usuario = await prisma.usuario.findFirst({
       where: { telefone },
       include: {
         prestador: { include: { documento: true, localizacao: true } },
         contratante: true
       }
     })
-    if (!usuario) throw new Error('Usuário não encontrado.')
-    return usuario
+    return usuario // ⬅️ Retorna null se não encontrar
   } catch (error) {
     console.error('Erro ao buscar usuário por telefone:', error)
-    throw new Error(error.message || 'Erro interno ao buscar usuário por telefone.')
+    return null
   }
 }
 
@@ -203,6 +202,7 @@ async function marcarComoUsado(id) {
   })
 }
 
+// Model - CORRIGIDO
 const buscarCodigoPorNumero = async (codigo) => {
   try {
     const registros = await prisma.recuperacaoSenha.findMany({
@@ -214,9 +214,10 @@ const buscarCodigoPorNumero = async (codigo) => {
       }
     });
     
-    return registros;
+    return registros || []
   } catch (error) {
-    throw error;
+    console.error('Erro ao buscar código:', error);
+    return []
   }
 }
 
