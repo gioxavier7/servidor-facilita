@@ -17,20 +17,15 @@ const insertCNH = async (cnh) => {
         numero_cnh: cnh.numero_cnh,
         categoria: cnh.categoria,
         validade: cnh.validade,
-        possui_ear: cnh.possui_ear
-      }
-    });
-    return novaCNH;
+        possui_ear: cnh.possui_ear,
+      },
+    })
+    return novaCNH
   } catch (error) {
-    console.error("Erro ao inserir CNH:", error);
-    
-    if (error.code === 'P2002') {
-      throw new Error('Já existe uma CNH com este número.');
-    }
-    
-    throw new Error(error.message || 'Erro interno ao criar CNH.');
+    console.error('Erro ao inserir CNH:', error)
+    return false
   }
-};
+}
 
 // ================= BUSCAR CNH POR ID =================
 const selectCNHById = async (id) => {

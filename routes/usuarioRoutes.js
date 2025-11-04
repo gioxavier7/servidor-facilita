@@ -14,12 +14,12 @@ router.post('/redefinir-senha', usuarioController.redefinirSenha)
 // ================= ROTAS AUTENTICADAS =================
 router.use(autenticarToken)
 
-// Perfil do usuário autenticado
-router.get('/perfil', usuarioController.buscarPerfilUsuario)
+// Perfil do usuário autenticado (AGORA COM DADOS COMPLETOS)
+router.get('/perfil', usuarioController.buscarUsuarioCompleto)
 router.put('/perfil', usuarioController.atualizarPerfil)             
 
-// Buscar próprio usuário (alternativa ao /perfil)
-router.get('/:id', usuarioController.buscarUsuario)                   
+// Buscar próprio usuário (alternativa ao /perfil) - MANTÉM O ATUAL
+//router.get('/:id', usuarioController.buscarUsuario)                   
 
 // ================= ROTAS ADMINISTRATIVAS (SE NECESSÁRIO) =================
 router.get('/', usuarioController.listarUsuarios)                         

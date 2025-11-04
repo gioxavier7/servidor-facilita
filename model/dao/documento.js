@@ -19,7 +19,7 @@ const insertDocumento = async (documento) => {
       data: {
         tipo_documento: documento.tipo_documento,
         valor: documento.valor,
-        data_validade: documento.data_validade,
+        data_validade: documento.data_validade ? new Date(documento.data_validade) : null,
         arquivo_url: documento.arquivo_url,
         id_prestador: documento.id_prestador
       }
@@ -30,6 +30,7 @@ const insertDocumento = async (documento) => {
     return false
   }
 }
+
 
 /**
  * Lista todos os documentos

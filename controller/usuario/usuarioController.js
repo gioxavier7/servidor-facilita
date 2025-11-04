@@ -323,19 +323,21 @@ const listarUsuarios = async (req, res) => {
   }
 }
 
-// ================= GET USUARIO POR ID =================
-const buscarUsuario = async (req, res) => {
+// ================= GET USUÁRIO COMPLETO POR TOKEN =================
+const buscarUsuarioCompleto = async (req, res) => {
   try {
-    const { id } = req.params;
+    // O ID vem do middleware de autenticação JWT
+    const userId = req.user.id;
 
-    if (!id) {
+    if (!userId) {
       return res.status(400).json({ 
         status_code: 400, 
-        message: 'ID do usuário é obrigatório' 
+        message: 'Token inválido ou usuário não autenticado' 
       });
     }
 
-    const usuario = await usuarioDAO.selectByIdUsuario(Number(id));
+    // Busca usuário com todos os dados relacionados
+    const usuario = await usuarioDAO.buscarUsuarioCompletoPorId(userId);
 
     if (!usuario) {
       return res.status(404).json({ 
@@ -344,21 +346,76 @@ const buscarUsuario = async (req, res) => {
       });
     }
 
-    if (req.user.id !== usuario.id) {
-      return res.status(403).json({ 
-        status_code: 403, 
-        message: 'Acesso negado' 
-      });
-    }
-
+    // Estrutura base do usuário
     const usuarioFormatado = {
       id: usuario.id,
       nome: usuario.nome,
       email: usuario.email,
       telefone: usuario.telefone,
+      foto_perfil: usuario.foto_perfil,
       tipo_conta: usuario.tipo_conta,
-      criado_em: usuario.criado_em
+      criado_em: usuario.criado_em,
+      carteira: usuario.carteira ? {
+        id: usuario.carteira.id,
+        saldo: usuario.carteira.saldo,
+        chave_pagbank: usuario.carteira.chave_pagbank,
+        data_criacao: usuario.carteira.data_criacao
+      } : null
     };
+
+    // Adiciona dados específicos baseado no tipo de conta
+    if (usuario.tipo_conta === 'CONTRATANTE' && usuario.contratante) {
+      usuarioFormatado.dados_contratante = {
+        id: usuario.contratante.id,
+        cpf: usuario.contratante.cpf,
+        necessidade: usuario.contratante.necessidade, // Agora é um campo direto
+        localizacao: usuario.contratante.localizacao ? {
+          id: usuario.contratante.localizacao.id,
+          logradouro: usuario.contratante.localizacao.logradouro,
+          numero: usuario.contratante.localizacao.numero,
+          bairro: usuario.contratante.localizacao.bairro,
+          cidade: usuario.contratante.localizacao.cidade,
+          cep: usuario.contratante.localizacao.cep,
+          latitude: usuario.contratante.localizacao.latitude,
+          longitude: usuario.contratante.localizacao.longitude
+        } : null
+      };
+    }
+
+    if (usuario.tipo_conta === 'PRESTADOR' && usuario.prestador) {
+      usuarioFormatado.dados_prestador = {
+        id: usuario.prestador.id,
+        documentos: usuario.prestador.documento.map(doc => ({
+          id: doc.id,
+          tipo_documento: doc.tipo_documento,
+          valor: doc.valor,
+          data_validade: doc.data_validade,
+          arquivo_url: doc.arquivo_url
+        })),
+        cnh: usuario.prestador.cnh.map(c => ({
+          id: c.id,
+          numero_cnh: c.numero_cnh,
+          categoria: c.categoria,
+          validade: c.validade,
+          possui_ear: c.possui_ear,
+          pontuacao_atual: c.pontuacao_atual
+        })),
+        modalidades: usuario.prestador.modalidades.map(m => ({
+          id: m.id,
+          tipo: m.tipo
+        })),
+        localizacoes: usuario.prestador.localizacao.map(loc => ({
+          id: loc.id,
+          logradouro: loc.logradouro,
+          numero: loc.numero,
+          bairro: loc.bairro,
+          cidade: loc.cidade,
+          cep: loc.cep,
+          latitude: loc.latitude,
+          longitude: loc.longitude
+        }))
+      };
+    }
 
     res.status(200).json({
       status_code: 200,
@@ -366,15 +423,14 @@ const buscarUsuario = async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Erro ao buscar usuário:', error);
+    console.error('Erro ao buscar usuário completo:', error);
     res.status(500).json({
       status_code: 500,
       message: 'Erro interno do servidor'
     });
   }
-};
+}
 
-// ================= ATUALIZAR USUARIO =================
 // ================= ATUALIZAR USUARIO =================
 const atualizarPerfil = async (req, res) => {
   try {
@@ -799,11 +855,11 @@ module.exports = {
   cadastrarUsuario,
   login,
   listarUsuarios,
-  buscarUsuario,
   deletarUsuario,
   solicitarRecuperacaoSenha,
   verificarCodigo,
   redefinirSenha,
   buscarPerfilUsuario,
-  atualizarPerfil
+  atualizarPerfil,
+  buscarUsuarioCompleto
 }

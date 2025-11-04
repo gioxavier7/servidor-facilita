@@ -1,14 +1,20 @@
-const express = require('express')
-const router = express.Router()
-const prestadorController = require('../controller/prestador/prestadorController')
-const autenticarToken = require('../middleware/authMiddleware')
+const express = require('express');
+const router = express.Router();
+const prestadorController = require('../controller/prestador/prestadorController');
+const documentoController = require('../controller/prestador/documentoController');
+const autenticarToken = require('../middleware/authMiddleware');
 
-//auth
-router.post('/register', autenticarToken, prestadorController.cadastrarPrestador)
+// fluxo progressivo
+router.post('/', autenticarToken, prestadorController.criarPrestadorBasico);
+router.post('/documentos', autenticarToken, documentoController.cadastrarDocumento);
+router.post('/cnh', autenticarToken, prestadorController.cadastrarCNH);
+router.post('/modalidades', autenticarToken, prestadorController.adicionarModalidades);
+router.patch('/finalizar', autenticarToken, prestadorController.finalizarCadastro);
 
-router.get('/', prestadorController.listarPrestadores)//retornar todos os prestadors
-router.get('/:id', prestadorController.buscarPrestador)//buscar por id
-router.put('/:id', autenticarToken, prestadorController.atualizarPrestador) //atualizar prestador
-router.delete('/:id', autenticarToken, prestadorController.deletarPrestador)
+// CRUD geral
+//router.get('/', prestadorController.listarPrestadores);
+router.get('/', prestadorController.buscarPrestador);
+router.put('/:id', autenticarToken, prestadorController.atualizarPrestador);
+router.delete('/:id', autenticarToken, prestadorController.deletarPrestador);
 
-module.exports = router
+module.exports = router;

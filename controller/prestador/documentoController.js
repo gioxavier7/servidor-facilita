@@ -6,22 +6,30 @@
  */
 
 const documentoDAO = require('../../model/dao/documento')
+const prestadorDAO = require('../../model/dao/prestador')
 
 //========== CRIAR DOCUMENTO ==========
 const cadastrarDocumento = async function(req, res) {
   try {
-    const { tipo_documento, valor, data_validade, arquivo_url, id_prestador } = req.body
+    const id_usuario = req.user.id; // vem do token
+    const { tipo_documento, valor, data_validade, arquivo_url } = req.body;
 
     // validação básica
-    if (!tipo_documento || !valor || !id_prestador) {
-      return res.status(400).json({ message: 'Dados insuficientes ou inválidos.' })
+    if (!tipo_documento || !valor) {
+      return res.status(400).json({ message: 'Dados insuficientes ou inválidos.' });
+    }
+
+    // buscar o prestador pelo id_usuario logado
+    const prestador = await prestadorDAO.buscarPrestadorPorUsuario(id_usuario);
+    if (!prestador) {
+      return res.status(404).json({ message: 'Prestador não encontrado para este usuário.' });
     }
 
     // validação de CPF se o tipo_documento for CPF
     if (tipo_documento === 'CPF') {
       const regexCPF = /^\d{11}$/;
       if (!regexCPF.test(valor)) {
-        return res.status(400).json({ message: 'CPF inválido, use 11 dígitos numéricos.' })
+        return res.status(400).json({ message: 'CPF inválido, use 11 dígitos numéricos.' });
       }
     }
 
@@ -30,19 +38,22 @@ const cadastrarDocumento = async function(req, res) {
       valor,
       data_validade,
       arquivo_url,
-      id_prestador
-    })
+      id_prestador: prestador.id
+    });
 
     if (novoDocumento) {
-      return res.status(201).json({ message: 'Documento criado com sucesso!', documento: novoDocumento })
+      return res.status(201).json({
+        message: 'Documento criado com sucesso!',
+        documento: novoDocumento
+      });
     } else {
-      return res.status(500).json({ message: 'Erro ao criar documento.' })
+      return res.status(500).json({ message: 'Erro ao criar documento.' });
     }
   } catch (error) {
-    console.error(error)
-    return res.status(500).json({ message: 'Erro interno no servidor.' })
+    console.error('Erro ao cadastrar documento:', error);
+    return res.status(500).json({ message: 'Erro interno no servidor.' });
   }
-}
+};
 
 //========== LISTAR DOCUMENTOS POR PRESTADOR ==========
 const listarDocumentosPorPrestador = async function(req, res) {

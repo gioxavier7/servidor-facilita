@@ -8,98 +8,76 @@
 const { PrismaClient } = require('@prisma/client')
 const prisma = new PrismaClient()
 
-// ================= INSERIR PRESTADOR =================
-const insertPrestador = async (prestador) => {
+// ================= CRIAR PRESTADOR BÁSICO =================
+const insertPrestadorBasico = async (prestador) => {
   try {
-    // validação de CPF obrigatório
-    const cpfDoc = (prestador.documento || []).find(doc => doc.tipo_documento === 'CPF');
-    if (!cpfDoc) {
-      throw new Error('Documento CPF obrigatório.');
+    const usuario = await prisma.usuario.findUnique({
+      where: { id: prestador.id_usuario }
+    });
+
+    if (!usuario) throw new Error('Usuário não encontrado.');
+
+    if (usuario.tipo_conta && usuario.tipo_conta !== 'PRESTADOR') {
+      throw new Error(`Este usuário já possui perfil de ${usuario.tipo_conta}.`);
     }
 
-    const regexCPF = /^\d{11}$/;
-    if (!regexCPF.test(cpfDoc.valor)) {
-      throw new Error('CPF inválido, use 11 dígitos numéricos.');
-    }
-
-    const result = await prisma.$transaction(async (prisma) => {
-      // verificação se usuário existe e não possui outro tipo de conta
-      const usuarioExistente = await prisma.usuario.findUnique({
-        where: { id: prestador.id_usuario }
-      });
-
-      if (!usuarioExistente) {
-        throw new Error('Usuário não encontrado.');
-      }
-
-      if (usuarioExistente.tipo_conta && usuarioExistente.tipo_conta !== 'PRESTADOR') {
-        throw new Error(`Este usuário já possui perfil de ${usuarioExistente.tipo_conta}.`);
-      }
-
-      // atualiza o tipo_conta do usuário primeiro
-      await prisma.usuario.update({
+    // atualiza o tipo_conta e cria o prestador vazio
+    const novoPrestador = await prisma.$transaction(async (tx) => {
+      await tx.usuario.update({
         where: { id: prestador.id_usuario },
         data: { tipo_conta: 'PRESTADOR' }
       });
 
-      // cria o prestador
-      const novoPrestador = await prisma.prestador.create({
+      return await tx.prestador.create({
         data: {
           id_usuario: prestador.id_usuario,
           localizacao: {
             connect: prestador.localizacao.map(id => ({ id }))
-          },
-          documento: {
-            create: prestador.documento.map(doc => ({
-              tipo_documento: doc.tipo_documento,
-              valor: doc.valor,
-              data_validade: doc.data_validade ? new Date(doc.data_validade) : null,
-              arquivo_url: doc.arquivo_url || null
-            }))
-          },
-          // Adiciona CNH se fornecida
-          ...(prestador.cnh && {
-            cnh: {
-              create: {
-                numero_cnh: prestador.cnh.numero_cnh,
-                categoria: prestador.cnh.categoria,
-                validade: new Date(prestador.cnh.validade),
-                possui_ear: prestador.cnh.possui_ear || false
-              }
-            }
-          }),
-          // Adiciona modalidades
-          ...(prestador.modalidades && prestador.modalidades.length > 0 && {
-            modalidades: {
-              create: prestador.modalidades.map(modalidade => ({
-                tipo: modalidade
-              }))
-            }
-          })
+          }
         },
-        include: {
-          usuario: true,
-          localizacao: true,
-          documento: true,
-          cnh: true,
-          modalidades: true
-        }
+        include: { localizacao: true }
       });
-
-      return novoPrestador;
     });
 
-    return result;
+    return novoPrestador;
   } catch (error) {
-    console.error("Erro ao inserir prestador:", error);
-    
-    if (error.code === 'P2002') {
-      throw new Error('Já existe um perfil de prestador para este usuário.');
-    }
-    
-    throw new Error(error.message || 'Erro interno ao criar prestador.');
+    console.error("Erro ao criar prestador básico:", error);
+    throw new Error(error.message || 'Erro ao criar prestador básico.');
   }
 };
+
+// ================= FINALIZAR CADASTRO =================
+const finishCadastro = async (id_prestador) => {
+  try {
+    const prestador = await prisma.prestador.findUnique({
+      where: { id: Number(id_prestador) },
+      include: { documento: true, cnh: true, modalidades: true }
+    })
+
+    if (!prestador) throw new Error('Prestador não encontrado.')
+
+    // validações mínimas
+    const cpf = prestador.documento.find(d => d.tipo_documento === 'CPF')
+    if (!cpf) throw new Error('CPF obrigatório para finalizar o cadastro.')
+
+    // se tiver veículo, precisa de CNH
+    const temVeiculo = prestador.modalidades.some(
+      m => m.tipo !== 'A_PE' && m.tipo !== 'BICICLETA'
+    )
+    if (temVeiculo && !prestador.cnh)
+      throw new Error('CNH obrigatória para modalidades com veículo.')
+
+    // marcar prestador como ativo
+    return await prisma.prestador.update({
+      where: { id: Number(id_prestador) },
+      data: { ativo: true },
+      include: { documento: true, cnh: true, modalidades: true }
+    })
+  } catch (error) {
+    console.error('Erro ao finalizar cadastro:', error)
+    throw new Error(error.message || 'Erro interno ao finalizar cadastro.')
+  }
+}
 
 // ================= LISTAR TODOS PRESTADORES =================
 const selectAllPrestadores = async () => {
@@ -170,22 +148,25 @@ const deletePrestador = async (id) => {
 // ================= ADICIONAR MODALIDADES =================
 const adicionarModalidades = async (id_prestador, modalidades) => {
   try {
-    const modalidadesCriadas = await prisma.modalidade_prestador.createMany({
-      data: modalidades.map(modalidade => ({
+    const modalidadesFormatadas = modalidades.map((tipo) => tipo.toUpperCase())
+
+    await prisma.modalidade_prestador.createMany({
+      data: modalidadesFormatadas.map((tipo) => ({
         id_prestador,
-        tipo: modalidade
+        tipo
       })),
-      skipDuplicates: true // Evita duplicatas
-    });
+      skipDuplicates: true
+    })
 
     return await prisma.modalidade_prestador.findMany({
       where: { id_prestador }
-    });
+    })
   } catch (error) {
-    console.error("Erro ao adicionar modalidades:", error);
-    throw new Error('Erro interno ao adicionar modalidades.');
+    console.error('Erro ao adicionar modalidades:', error)
+    throw error // não suprime o erro, pra ver o real motivo
   }
-};
+}
+
 
 const selectPrestadorByUsuarioId = async (usuarioId) => {
   try {
@@ -360,8 +341,27 @@ const selectPrestadorCompletoByUsuarioId = async (usuarioId) => {
   }
 };
 
+// ================= BUSCAR PRESTADOR POR USUÁRIO =================
+const buscarPrestadorPorUsuario = async (id_usuario) => {
+  try {
+    return await prisma.prestador.findUnique({
+      where: { id_usuario: Number(id_usuario) },
+      include: {
+        usuario: true,
+        documento: true,
+        cnh: true,
+        modalidades: true
+      }
+    })
+  } catch (error) {
+    console.error('Erro ao buscar prestador por usuário:', error)
+    throw new Error('Erro interno ao buscar prestador.')
+  }
+}
+
 module.exports = {
-  insertPrestador,
+  insertPrestadorBasico,
+  finishCadastro,
   selectAllPrestadores,
   selectPrestadorById,
   updatePrestador,
@@ -370,5 +370,6 @@ module.exports = {
   selectPrestadorByUsuarioId,
   atualizarLocaisPrestador,
   atualizarDocumentosPrestador,
-  selectPrestadorCompletoByUsuarioId
+  selectPrestadorCompletoByUsuarioId,
+  buscarPrestadorPorUsuario
 }

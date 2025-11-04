@@ -306,6 +306,8 @@ model prestador {
   mensagens        chat_servico[]
   avaliacao        avaliacao[]
 
+  ativo       Boolean       @default(false)
+
   @@index([id_usuario], map: "Prestador_id_usuario_idx")
 }
 
