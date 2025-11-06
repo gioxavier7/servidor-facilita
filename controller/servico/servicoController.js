@@ -1461,7 +1461,97 @@ const getDetalhesPedido = async (req, res) => {
   }
 }
 
+/**
+ * Recusa um serviço (APENAS PRESTADOR)
+ */
+const recusarServico = async (req, res) => {
+  try {
+    const { id } = req.params
+    const { motivo } = req.body
+    const prestadorId = req.user.id // Assume que o usuário autenticado é o prestador
 
+    if (!id) {
+      return res.status(400).json({ 
+        status_code: 400, 
+        message: 'ID do serviço é obrigatório' 
+      })
+    }
+
+    // Verifica se o usuário é um prestador
+    if (req.user.tipo !== 'PRESTADOR') {
+      return res.status(403).json({ 
+        status_code: 403, 
+        message: 'Acesso negado. Apenas prestadores podem recusar serviços' 
+      })
+    }
+
+    const resultado = await servicoDAO.recusarServico(
+      Number(id), 
+      prestadorId, 
+      motivo
+    )
+
+    res.status(200).json({ 
+      status_code: 200, 
+      message: 'Serviço recusado com sucesso',
+      data: resultado
+    })
+
+  } catch (error) {
+    console.error('Erro ao recusar serviço:', error)
+    
+    if (error.message.includes('não encontrado')) {
+      return res.status(404).json({ 
+        status_code: 404, 
+        message: error.message 
+      })
+    }
+    
+    if (error.message.includes('não está disponível') || 
+        error.message.includes('já recusou')) {
+      return res.status(400).json({ 
+        status_code: 400, 
+        message: error.message 
+      })
+    }
+
+    res.status(500).json({ 
+      status_code: 500, 
+      message: 'Erro interno do servidor ao recusar serviço' 
+    })
+  }
+}
+
+/**
+ * Lista serviços recusados pelo prestador
+ */
+const listarServicosRecusados = async (req, res) => {
+  try {
+    const prestadorId = req.user.id
+
+    if (req.user.tipo !== 'PRESTADOR') {
+      return res.status(403).json({ 
+        status_code: 403, 
+        message: 'Acesso negado. Apenas prestadores podem visualizar serviços recusados' 
+      })
+    }
+
+    const servicosRecusados = await servicoDAO.selectServicosRecusados(prestadorId)
+
+    res.status(200).json({ 
+      status_code: 200, 
+      message: 'Serviços recusados recuperados com sucesso',
+      data: servicosRecusados
+    })
+
+  } catch (error) {
+    console.error('Erro ao listar serviços recusados:', error)
+    res.status(500).json({ 
+      status_code: 500, 
+      message: 'Erro interno do servidor' 
+    })
+  }
+}
 
 module.exports = {
   cadastrarServico,
@@ -1480,5 +1570,7 @@ module.exports = {
   filtrarPorCategoria,
   criarServicoPorCategoria,
   pagarServicoComCarteira,
-  getDetalhesPedido
+  getDetalhesPedido,
+  recusarServico,
+  listarServicosRecusados
 }

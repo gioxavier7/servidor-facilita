@@ -16,7 +16,7 @@ model recuperacaoSenha {
   criadoEm  DateTime @default(now()) @map("criado_em")
   usuario   usuario  @relation(fields: [usuarioId], references: [id])
 
-  @@index([usuarioId], map: "recuperacao_senha_usuarioId_fkey")
+  @@index([usuarioId])
   @@map("recuperacao_senha")
 }
 
@@ -71,16 +71,17 @@ model servico {
   notificacoes     notificacao[]
   pagamentos       pagamento[]
   rastreamentos    rastreamento_servico[]
+  recusas          RecusaServico[]
   categoria        categoria?               @relation(fields: [id_categoria], references: [id])
   contratante      contratante              @relation(fields: [id_contratante], references: [id])
   localizacao      localizacao?             @relation(fields: [id_localizacao], references: [id])
   prestador        prestador?               @relation(fields: [id_prestador], references: [id])
   paradas          servico_parada[]
 
-  @@index([id_categoria], map: "servico_id_categoria_fkey")
-  @@index([id_contratante], map: "servico_id_contratante_fkey")
-  @@index([id_localizacao], map: "servico_id_localizacao_fkey")
-  @@index([id_prestador], map: "servico_id_prestador_fkey")
+  @@index([id_categoria])
+  @@index([id_contratante])
+  @@index([id_localizacao])
+  @@index([id_prestador])
   @@map("servico")
 }
 
@@ -150,8 +151,8 @@ model notificacao {
   servico      servico? @relation(fields: [id_servico], references: [id])
   usuario      usuario  @relation(fields: [id_usuario], references: [id])
 
-  @@index([id_servico], map: "notificacao_id_servico_fkey")
-  @@index([id_usuario], map: "notificacao_id_usuario_fkey")
+  @@index([id_servico])
+  @@index([id_usuario])
   @@map("notificacao")
 }
 
@@ -186,9 +187,9 @@ model pagamento {
   prestador      prestador       @relation(fields: [id_prestador], references: [id])
   servico        servico         @relation(fields: [id_servico], references: [id])
 
-  @@index([id_contratante], map: "pagamento_id_contratante_fkey")
-  @@index([id_prestador], map: "pagamento_id_prestador_fkey")
-  @@index([id_servico], map: "pagamento_id_servico_fkey")
+  @@index([id_contratante])
+  @@index([id_prestador])
+  @@index([id_servico])
   @@map("pagamento")
 }
 
@@ -213,7 +214,7 @@ model transacaoCarteira {
   data_transacao DateTime      @default(now())
   carteira       carteira      @relation(fields: [id_carteira], references: [id])
 
-  @@index([id_carteira], map: "transacao_carteira_id_carteira_fkey")
+  @@index([id_carteira])
   @@map("transacao_carteira")
 }
 
@@ -236,17 +237,18 @@ model localizacao {
 model contratante {
   id             Int                      @id @default(autoincrement())
   necessidade    contratante_necessidade?
-  id_usuario     Int                      @unique(map: "Contratante_id_usuario_key")
+  id_usuario     Int                      @unique
   id_localizacao Int
-  cpf            String?                  @unique(map: "Contratante_cpf_key")
+  cpf            String?                  @unique
   avaliacao      avaliacao[]
   mensagens      chat_servico[]
-  localizacao    localizacao              @relation(fields: [id_localizacao], references: [id], map: "Contratante_id_localizacao_fkey")
-  usuario        usuario                  @relation(fields: [id_usuario], references: [id], map: "Contratante_id_usuario_fkey")
+  localizacao    localizacao              @relation(fields: [id_localizacao], references: [id])
+  usuario        usuario                  @relation(fields: [id_usuario], references: [id])
   pagamento      pagamento[]
   servico        servico[]
 
-  @@index([id_localizacao], map: "Contratante_id_localizacao_fkey")
+  @@index([id_localizacao])
+  @@map("contratante")
 }
 
 model documento {
@@ -256,24 +258,41 @@ model documento {
   data_validade  DateTime?
   arquivo_url    String?
   id_prestador   Int
-  prestador      prestador                @relation(fields: [id_prestador], references: [id], map: "Documento_id_prestador_fkey")
+  prestador      prestador                @relation(fields: [id_prestador], references: [id])
 
-  @@index([id_prestador], map: "Documento_id_prestador_fkey")
+  @@index([id_prestador])
+  @@map("documento")
+}
+
+model RecusaServico {
+  id           Int      @id @default(autoincrement())
+  id_servico   Int
+  id_prestador Int
+  motivo       String?
+  data_recusa  DateTime @default(now())
+  
+  servico   servico   @relation(fields: [id_servico], references: [id], onDelete: Cascade)
+  prestador prestador @relation(fields: [id_prestador], references: [id], onDelete: Cascade)
+  
+  @@unique([id_servico, id_prestador])
+  @@map("recusa_servico")
 }
 
 model prestador {
   id           Int                      @id @default(autoincrement())
-  id_usuario   Int                      @unique(map: "Prestador_id_usuario_key")
+  id_usuario   Int                      @unique
   atualizacoes atualizacao_tempo_real[]
   avaliacao    avaliacao[]
   mensagens    chat_servico[]
   documento    documento[]
   pagamento    pagamento[]
-  usuario      usuario                  @relation(fields: [id_usuario], references: [id], map: "Prestador_id_usuario_fkey")
+  recusas      RecusaServico[]
+  usuario      usuario                  @relation(fields: [id_usuario], references: [id])
   servico      servico[]
   localizacao  localizacao[]            @relation("localizacaotoprestador")
 
-  @@index([id_usuario], map: "Prestador_id_usuario_idx")
+  @@index([id_usuario])
+  @@map("prestador")
 }
 
 model recarga_carteira {
@@ -296,8 +315,8 @@ model usuario {
   nome         String
   senha_hash   String
   foto_perfil  String?             @db.VarChar(255)
-  email        String              @unique(map: "Usuario_email_key")
-  telefone     String              @unique(map: "Usuario_telefone_key")
+  email        String              @unique
+  telefone     String              @unique
   tipo_conta   usuario_tipo_conta?
   criado_em    DateTime            @default(now())
   carteira     carteira?
@@ -313,6 +332,7 @@ enum statusServico {
   EM_ANDAMENTO
   FINALIZADO
   CANCELADO
+  CONCLUIDO
 }
 
 enum metodoPagamento {

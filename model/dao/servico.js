@@ -613,7 +613,113 @@ const filtrarPorCategoria = async (categoriaId) => {
     console.error('Erro ao filtrar serviços por categoria:', error);
     return false;
   }
-};
+}
+
+/**
+ * Recusa um serviço pelo prestador
+ * @param {number} servicoId - ID do serviço
+ * @param {number} prestadorId - ID do prestador
+ * @param {string} motivoRecusa - Motivo opcional da recusa
+ * @returns {Object|false} - Serviço atualizado ou false em caso de erro
+ */
+const recusarServico = async (servicoId, prestadorId, motivoRecusa = null) => {
+  try {
+    // Verifica se o serviço existe e está disponível
+    const servico = await prisma.servico.findUnique({
+      where: { id: servicoId }
+    })
+
+    if (!servico) {
+      throw new Error('Serviço não encontrado')
+    }
+
+    // Verifica se o serviço está pendente
+    if (servico.status !== statusServico.PENDENTE) {
+      throw new Error('Serviço não está disponível para recusa')
+    }
+
+    // Verifica se o prestador já recusou este serviço anteriormente
+    const recusaExistente = await prisma.recusaServico.findFirst({
+      where: {
+        id_servico: servicoId,
+        id_prestador: prestadorId
+      }
+    })
+
+    if (recusaExistente) {
+      throw new Error('Você já recusou este serviço anteriormente')
+    }
+
+    // Cria registro de recusa
+    await prisma.recusaServico.create({
+      data: {
+        id_servico: servicoId,
+        id_prestador: prestadorId,
+        motivo: motivoRecusa,
+        data_recusa: new Date()
+      }
+    })
+
+    // Opcional: Contar quantas recusas o serviço teve
+    const totalRecusas = await prisma.recusaServico.count({
+      where: { id_servico: servicoId }
+    })
+
+    // Se o serviço foi recusado muitas vezes, pode-se mudar o status
+    if (totalRecusas >= 5) { // Ajuste o limite conforme necessário
+      await prisma.servico.update({
+        where: { id: servicoId },
+        data: {
+          status: statusServico.CANCELADO,
+          motivo_cancelamento: 'Serviço recusado por múltiplos prestadores'
+        }
+      })
+    }
+
+    return {
+      servico: servico,
+      recusaRegistrada: true,
+      totalRecusas: totalRecusas,
+      mensagem: 'Serviço recusado com sucesso'
+    }
+
+  } catch (error) {
+    console.error('Erro ao recusar serviço:', error)
+    throw error
+  }
+}
+
+/**
+ * busca serviços recusados por um prestador
+ * @param {number} prestadorId - ID do prestador
+ * @returns {Array} - Lista de serviços recusados
+ */
+const selectServicosRecusados = async (prestadorId) => {
+  try {
+    const recusas = await prisma.recusaServico.findMany({
+      where: { id_prestador: prestadorId },
+      include: {
+        servico: {
+          include: {
+            contratante: {
+              include: {
+                usuario: true
+              }
+            },
+            categoria: true,
+            localizacao: true
+          }
+        }
+      },
+      orderBy: { data_recusa: 'desc' }
+    })
+
+    return recusas
+  } catch (error) {
+    console.error('Erro ao buscar serviços recusados:', error)
+    throw error
+  }
+}
 
 module.exports = {
   insertServico,
@@ -631,5 +737,7 @@ module.exports = {
   countServicosPorContratante,
   confirmarConclusao,
   pesquisarPorDescricao,
-  filtrarPorCategoria
+  filtrarPorCategoria,
+  recusarServico,
+  selectServicosRecusados
 }
