@@ -26,6 +26,7 @@ router.patch('/:id/aceitar', servicoController.aceitarServico)
 router.patch('/:id/finalizar', servicoController.finalizarServico)
 router.patch('/:id/confirmar-conclusao', servicoController.confirmarConclusao)
 router.post('/from-categoria/:categoriaId', servicoController.criarServicoPorCategoria)
+router.get('/:id/detalhes', servicoController.getDetalhesPedido)
 
 //rotas basicas com parametros
 router.get('/:id', servicoController.buscarServicoPorId)

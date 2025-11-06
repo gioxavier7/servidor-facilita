@@ -1380,6 +1380,89 @@ const pagarServicoComCarteira = async (req, res) => {
   }
 }
 
+/**
+ * Retorna todos os detalhes de um pedido (acesso público)
+ */
+const getDetalhesPedido = async (req, res) => {
+  try {
+    const { id } = req.params
+
+    // Validação básica do ID
+    if (!id || isNaN(id)) {
+      return res.status(400).json({
+        success: false,
+        message: 'ID do pedido é inválido'
+      })
+    }
+
+    // Busca o serviço pelo ID
+    const servico = await servicoDAO.selectByIdServico(Number(id))
+
+    if (!servico) {
+      return res.status(404).json({
+        success: false,
+        message: 'Pedido não encontrado'
+      })
+    }
+
+    // Estrutura os dados de resposta (pode ser ajustado conforme necessidade)
+    const detalhesPedido = {
+      id: servico.id,
+      descricao: servico.descricao,
+      status: servico.status,
+      valor: servico.valor,
+      data_solicitacao: servico.data_solicitacao,
+      data_conclusao: servico.data_conclusao,
+      data_confirmacao: servico.data_confirmacao,
+      categoria: servico.categoria ? {
+        id: servico.categoria.id,
+        nome: servico.categoria.nome,
+        descricao: servico.categoria.descricao
+      } : null,
+      localizacao: servico.localizacao ? {
+        id: servico.localizacao.id,
+        endereco: servico.localizacao.endereco,
+        cidade: servico.localizacao.cidade,
+        estado: servico.localizacao.estado,
+        cep: servico.localizacao.cep,
+        latitude: servico.localizacao.latitude,
+        longitude: servico.localizacao.longitude
+      } : null,
+      prestador: servico.prestador ? {
+        id: servico.prestador.id,
+        usuario: {
+          nome: servico.prestador.usuario.nome,
+          email: servico.prestador.usuario.email,
+          telefone: servico.prestador.usuario.telefone
+        }
+      } : null,
+      contratante: servico.contratante ? {
+        id: servico.contratante.id,
+        usuario: {
+          nome: servico.contratante.usuario.nome,
+          email: servico.contratante.usuario.email,
+          telefone: servico.contratante.usuario.telefone
+        }
+      } : null
+    }
+
+    return res.status(200).json({
+      success: true,
+      data: detalhesPedido,
+      message: 'Detalhes do pedido recuperados com sucesso'
+    })
+
+  } catch (error) {
+    console.error('Erro no controller getDetalhesPedido:', error)
+    return res.status(500).json({
+      success: false,
+      message: 'Erro interno do servidor ao buscar detalhes do pedido'
+    })
+  }
+}
+
+
+
 module.exports = {
   cadastrarServico,
   atualizarServico,
@@ -1396,5 +1479,6 @@ module.exports = {
   pesquisarPorDescricao,
   filtrarPorCategoria,
   criarServicoPorCategoria,
-  pagarServicoComCarteira
+  pagarServicoComCarteira,
+  getDetalhesPedido
 }

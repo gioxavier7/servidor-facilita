@@ -33,51 +33,49 @@ model categoria {
 }
 
 model servico_parada {
-  id               Int      @id @default(autoincrement())
-  id_servico       Int
-  ordem            Int      
-  tipo             String   @db.VarChar(20) // 'origem', 'parada', 'destino'
-  lat              Decimal  @db.Decimal(10, 8)
-  lng              Decimal  @db.Decimal(11, 8)
-  descricao        String?  @db.VarChar(255)
-  endereco_completo String? // endereço completo para exibição
-  tempo_estimado_chegada Int? // tempo estimado para chegar nesta parada (em minutos)
-  data_criacao     DateTime @default(now())
+  id                     Int      @id @default(autoincrement())
+  id_servico             Int
+  ordem                  Int
+  tipo                   String   @db.VarChar(20)
+  lat                    Decimal  @db.Decimal(10, 8)
+  lng                    Decimal  @db.Decimal(11, 8)
+  descricao              String?  @db.VarChar(255)
+  endereco_completo      String?
+  tempo_estimado_chegada Int?
+  data_criacao           DateTime @default(now())
+  servico                servico  @relation(fields: [id_servico], references: [id], onDelete: Cascade)
 
-  servico servico @relation(fields: [id_servico], references: [id], onDelete: Cascade)
-
-  @@map("servico_parada")
   @@index([id_servico])
   @@index([id_servico, ordem])
+  @@map("servico_parada")
 }
 
 model servico {
-  id               Int           @id @default(autoincrement())
+  id               Int                      @id @default(autoincrement())
   id_contratante   Int
   id_prestador     Int?
   id_categoria     Int?
   descricao        String
-  status           statusServico @default(PENDENTE)
-  data_solicitacao DateTime      @default(now())
+  status           statusServico            @default(PENDENTE)
+  data_solicitacao DateTime                 @default(now())
   data_conclusao   DateTime?
   data_confirmacao DateTime?
   id_localizacao   Int?
-  valor            Decimal?      @db.Decimal(10, 2)
-  tempo_estimado   Int?          // em minutos
-  data_inicio      DateTime?     // quando o prestador começou a se deslocar
-  data_chegada     DateTime?     // quando o prestador chegou ao local
-  pagamentos       pagamento[]
-  notificacoes     notificacao[]
-  rastreamentos    rastreamento_servico[]
+  valor            Decimal?                 @db.Decimal(10, 2)
+  tempo_estimado   Int?
+  data_inicio      DateTime?
+  data_chegada     DateTime?
   atualizacoes     atualizacao_tempo_real[]
+  avaliacao        avaliacao?
   mensagens        chat_servico[]
-  avaliacao        avaliacao[]
+  notificacoes     notificacao[]
+  pagamentos       pagamento[]
+  rastreamentos    rastreamento_servico[]
+  categoria        categoria?               @relation(fields: [id_categoria], references: [id])
+  contratante      contratante              @relation(fields: [id_contratante], references: [id])
+  localizacao      localizacao?             @relation(fields: [id_localizacao], references: [id])
+  prestador        prestador?               @relation(fields: [id_prestador], references: [id])
   paradas          servico_parada[]
-  
-  categoria        categoria?    @relation(fields: [id_categoria], references: [id])
-  contratante      contratante   @relation(fields: [id_contratante], references: [id])
-  localizacao      localizacao?  @relation(fields: [id_localizacao], references: [id])
-  prestador        prestador?    @relation(fields: [id_prestador], references: [id])
 
   @@index([id_categoria], map: "servico_id_categoria_fkey")
   @@index([id_contratante], map: "servico_id_contratante_fkey")
@@ -87,56 +85,53 @@ model servico {
 }
 
 model rastreamento_servico {
-  id          Int                 @id @default(autoincrement())
-  id_servico  Int
-  status      StatusRastreamento
-  latitude    Decimal?
-  longitude   Decimal?
-  endereco    String?
-  data_hora   DateTime            @default(now())
-  observacao  String?             @db.Text
-  
-  servico     servico             @relation(fields: [id_servico], references: [id])
-  
+  id         Int                @id @default(autoincrement())
+  id_servico Int
+  status     StatusRastreamento
+  latitude   Decimal?
+  longitude  Decimal?
+  endereco   String?
+  data_hora  DateTime           @default(now())
+  observacao String?            @db.Text
+  servico    servico            @relation(fields: [id_servico], references: [id])
+
   @@index([id_servico])
   @@map("rastreamento_servico")
 }
 
 model atualizacao_tempo_real {
-  id               Int               @id @default(autoincrement())
-  id_servico       Int
-  id_prestador     Int
-  tipo             TipoAtualizacao
-  latitude         Decimal?
-  longitude        Decimal?
-  mensagem         String?           @db.Text
-  url_foto         String?
-  data_criacao     DateTime          @default(now())
-  
-  servico          servico           @relation(fields: [id_servico], references: [id])
-  prestador        prestador         @relation(fields: [id_prestador], references: [id])
-  
+  id           Int             @id @default(autoincrement())
+  id_servico   Int
+  id_prestador Int
+  tipo         TipoAtualizacao
+  latitude     Decimal?
+  longitude    Decimal?
+  mensagem     String?         @db.Text
+  url_foto     String?
+  data_criacao DateTime        @default(now())
+  prestador    prestador       @relation(fields: [id_prestador], references: [id])
+  servico      servico         @relation(fields: [id_servico], references: [id])
+
   @@index([id_servico])
   @@index([id_prestador])
   @@map("atualizacao_tempo_real")
 }
 
 model chat_servico {
-  id             Int       @id @default(autoincrement())
+  id             Int         @id @default(autoincrement())
   id_servico     Int
   id_contratante Int
   id_prestador   Int
-  mensagem       String    @db.Text
-  tipo           String    // 'texto', 'imagem', 'localizacao'
+  mensagem       String      @db.Text
+  tipo           String
   url_anexo      String?
-  enviado_por    String    // 'contratante' ou 'prestador'
-  lida           Boolean   @default(false)
-  data_envio     DateTime  @default(now())
-  
-  servico        servico   @relation(fields: [id_servico], references: [id])
+  enviado_por    String
+  lida           Boolean     @default(false)
+  data_envio     DateTime    @default(now())
   contratante    contratante @relation(fields: [id_contratante], references: [id])
   prestador      prestador   @relation(fields: [id_prestador], references: [id])
-  
+  servico        servico     @relation(fields: [id_servico], references: [id])
+
   @@index([id_servico])
   @@index([id_contratante])
   @@index([id_prestador])
@@ -147,30 +142,30 @@ model notificacao {
   id           Int      @id @default(autoincrement())
   id_usuario   Int
   id_servico   Int?
-  tipo         String   // 'servico', 'pagamento', 'sistema', 'mensagem'
+  tipo         String
   titulo       String
   mensagem     String
   lida         Boolean  @default(false)
   data_criacao DateTime @default(now())
-
-  usuario      usuario  @relation(fields: [id_usuario], references: [id])
   servico      servico? @relation(fields: [id_servico], references: [id])
+  usuario      usuario  @relation(fields: [id_usuario], references: [id])
 
+  @@index([id_servico], map: "notificacao_id_servico_fkey")
+  @@index([id_usuario], map: "notificacao_id_usuario_fkey")
   @@map("notificacao")
 }
 
 model avaliacao {
-  id             Int       @id @default(autoincrement())
-  id_servico     Int       @unique
+  id             Int         @id @default(autoincrement())
+  id_servico     Int         @unique
   id_contratante Int
   id_prestador   Int
   nota           Int
-  comentario     String?   @db.Text
-  data_avaliacao DateTime? @default(now())
-
-  servico        servico     @relation(fields: [id_servico], references: [id])
+  comentario     String?     @db.Text
+  data_avaliacao DateTime?   @default(now())
   contratante    contratante @relation(fields: [id_contratante], references: [id])
   prestador      prestador   @relation(fields: [id_prestador], references: [id])
+  servico        servico     @relation(fields: [id_servico], references: [id])
 
   @@index([id_contratante])
   @@index([id_prestador])
@@ -244,12 +239,12 @@ model contratante {
   id_usuario     Int                      @unique(map: "Contratante_id_usuario_key")
   id_localizacao Int
   cpf            String?                  @unique(map: "Contratante_cpf_key")
+  avaliacao      avaliacao[]
+  mensagens      chat_servico[]
   localizacao    localizacao              @relation(fields: [id_localizacao], references: [id], map: "Contratante_id_localizacao_fkey")
   usuario        usuario                  @relation(fields: [id_usuario], references: [id], map: "Contratante_id_usuario_fkey")
   pagamento      pagamento[]
   servico        servico[]
-  mensagens      chat_servico[]
-  avaliacao      avaliacao[]
 
   @@index([id_localizacao], map: "Contratante_id_localizacao_fkey")
 }
@@ -266,61 +261,31 @@ model documento {
   @@index([id_prestador], map: "Documento_id_prestador_fkey")
 }
 
-model cnh {
-  id                Int        @id @default(autoincrement())
-  id_prestador      Int
-  numero_cnh        String     @unique
-  categoria         categoriaCNH
-  validade          DateTime
-  possui_ear        Boolean    @default(false)
-  pontuacao_atual   Int?       @default(0)
-  data_criacao      DateTime   @default(now())
-  data_atualizacao  DateTime   @updatedAt
-  prestador         prestador  @relation(fields: [id_prestador], references: [id])
-
-  @@map("cnh")
-  @@index([id_prestador])
-}
-
-model modalidade_prestador {
-  id           Int           @id @default(autoincrement())
-  id_prestador Int
-  tipo         modalidade_transporte
-  prestador    prestador     @relation(fields: [id_prestador], references: [id])
-  
-  @@unique([id_prestador, tipo])
-  @@map("modalidade_prestador")
-}
-
 model prestador {
-  id          Int           @id @default(autoincrement())
-  id_usuario  Int           @unique(map: "Prestador_id_usuario_key")
-  documento   documento[]
-  cnh         cnh[]
-  modalidades modalidade_prestador[]
-  pagamento   pagamento[]
-  usuario     usuario       @relation(fields: [id_usuario], references: [id], map: "Prestador_id_usuario_fkey")
-  servico     servico[]
-  localizacao localizacao[] @relation("localizacaotoprestador")
-  atualizacoes     atualizacao_tempo_real[]
-  mensagens        chat_servico[]
-  avaliacao        avaliacao[]
-
-  ativo       Boolean       @default(false)
+  id           Int                      @id @default(autoincrement())
+  id_usuario   Int                      @unique(map: "Prestador_id_usuario_key")
+  atualizacoes atualizacao_tempo_real[]
+  avaliacao    avaliacao[]
+  mensagens    chat_servico[]
+  documento    documento[]
+  pagamento    pagamento[]
+  usuario      usuario                  @relation(fields: [id_usuario], references: [id], map: "Prestador_id_usuario_fkey")
+  servico      servico[]
+  localizacao  localizacao[]            @relation("localizacaotoprestador")
 
   @@index([id_usuario], map: "Prestador_id_usuario_idx")
 }
 
 model recarga_carteira {
-  id             Int               @id @default(autoincrement())
-  id_usuario     Int
-  valor          Decimal           @db.Decimal(10, 2)
-  metodo         MetodoRecarga     @default(PIX)
-  status         StatusRecarga     @default(PENDENTE)
-  id_pagbank     String?
-  data_solicitacao DateTime        @default(now())
+  id               Int           @id @default(autoincrement())
+  id_usuario       Int
+  valor            Decimal       @db.Decimal(10, 2)
+  metodo           MetodoRecarga @default(PIX)
+  status           StatusRecarga @default(PENDENTE)
+  id_pagbank       String?
+  data_solicitacao DateTime      @default(now())
   data_confirmacao DateTime?
-  usuario        usuario           @relation(fields: [id_usuario], references: [id])
+  usuario          usuario       @relation(fields: [id_usuario], references: [id])
 
   @@index([id_usuario])
   @@map("recarga_carteira")
@@ -337,13 +302,12 @@ model usuario {
   criado_em    DateTime            @default(now())
   carteira     carteira?
   contratante  contratante?
-  prestador    prestador?
-  recuperacoes recuperacaoSenha[]
   notificacoes notificacao[]
+  prestador    prestador?
   recarga      recarga_carteira[]
+  recuperacoes recuperacaoSenha[]
 }
 
-// ENUMS
 enum statusServico {
   PENDENTE
   EM_ANDAMENTO
@@ -367,38 +331,6 @@ enum statusPagamento {
 enum tipoTransacao {
   ENTRADA
   SAIDA
-}
-
-enum documento_tipo_documento {
-  RG
-  CPF
-  TIPO_VEICULO
-  MODELO_VEICULO
-  ANO_VEICULO
-  SEGURO_VEICULO
-  COMPARTIMENTO_VEICULO
-  REVISAO_VEICULO
-  ANTECEDENTES_CRIMINAIS
-  CONTATO_EMERGENCIA
-}
-
-enum categoriaCNH {
-  A
-  B
-  C
-  D
-  E
-  AB
-  AC
-  AD
-  AE
-}
-
-enum modalidade_transporte {
-  MOTO
-  CARRO
-  BICICLETA
-  A_PE
 }
 
 enum contratante_necessidade {
@@ -440,4 +372,13 @@ enum StatusRecarga {
   CONFIRMADA
   CANCELADA
   FALHOU
+}
+
+enum documento_tipo_documento {
+  RG
+  CPF
+  CNH_EAR
+  TIPO_VEICULO
+  MODELO_VEICULO
+  ANO_VEICULO
 }
