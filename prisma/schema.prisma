@@ -419,8 +419,8 @@ enum TipoModalidade {
   VAN
   CAMINHAO
   BICICLETA
+  A_PE
 }
-
 enum documento_tipo_documento {
   RG
   CPF
@@ -428,4 +428,9 @@ enum documento_tipo_documento {
   TIPO_VEICULO
   MODELO_VEICULO
   ANO_VEICULO
+  SEGURO_VEICULO
+  COMPARTIMENTO_VEICULO
+  REVISAO_VEICULO
+  ANTECEDENTES_CRIMINAIS
+  CONTATO_EMERGENCIA
 }
