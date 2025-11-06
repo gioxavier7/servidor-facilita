@@ -326,7 +326,6 @@ const listarUsuarios = async (req, res) => {
 // ================= GET USUÁRIO COMPLETO POR TOKEN =================
 const buscarUsuarioCompleto = async (req, res) => {
   try {
-    // O ID vem do middleware de autenticação JWT
     const userId = req.user.id;
 
     if (!userId) {
@@ -336,7 +335,7 @@ const buscarUsuarioCompleto = async (req, res) => {
       });
     }
 
-    // Busca usuário com todos os dados relacionados
+    //busca usuário com todos os dados relacionados
     const usuario = await usuarioDAO.buscarUsuarioCompletoPorId(userId);
 
     if (!usuario) {
@@ -346,7 +345,7 @@ const buscarUsuarioCompleto = async (req, res) => {
       });
     }
 
-    // Estrutura base do usuário
+    // base do usuário
     const usuarioFormatado = {
       id: usuario.id,
       nome: usuario.nome,
@@ -363,12 +362,12 @@ const buscarUsuarioCompleto = async (req, res) => {
       } : null
     };
 
-    // Adiciona dados específicos baseado no tipo de conta
+    //dados específicos baseado no tipo de conta
     if (usuario.tipo_conta === 'CONTRATANTE' && usuario.contratante) {
       usuarioFormatado.dados_contratante = {
         id: usuario.contratante.id,
         cpf: usuario.contratante.cpf,
-        necessidade: usuario.contratante.necessidade, // Agora é um campo direto
+        necessidade: usuario.contratante.necessidade,
         localizacao: usuario.contratante.localizacao ? {
           id: usuario.contratante.localizacao.id,
           logradouro: usuario.contratante.localizacao.logradouro,
@@ -383,28 +382,43 @@ const buscarUsuarioCompleto = async (req, res) => {
     }
 
     if (usuario.tipo_conta === 'PRESTADOR' && usuario.prestador) {
+      const documentos = usuario.prestador.documento || [];
+      const cnhDocumentos = documentos.filter(doc => 
+        doc.tipo_documento === 'CNH_EAR'
+      );
+      const outrosDocumentos = documentos.filter(doc => 
+        doc.tipo_documento !== 'CNH_EAR'
+      );
+    
       usuarioFormatado.dados_prestador = {
         id: usuario.prestador.id,
-        documentos: usuario.prestador.documento.map(doc => ({
+        ativo: usuario.prestador.ativo,
+        documentos: outrosDocumentos.map(doc => ({
           id: doc.id,
           tipo_documento: doc.tipo_documento,
           valor: doc.valor,
           data_validade: doc.data_validade,
           arquivo_url: doc.arquivo_url
         })),
-        cnh: usuario.prestador.cnh.map(c => ({
+        // CNH vem dos documentos filtrados
+        cnh: cnhDocumentos.map(c => ({
           id: c.id,
-          numero_cnh: c.numero_cnh,
-          categoria: c.categoria,
-          validade: c.validade,
-          possui_ear: c.possui_ear,
-          pontuacao_atual: c.pontuacao_atual
+          numero_cnh: c.valor,
+          tipo_documento: c.tipo_documento,
+          data_validade: c.data_validade,
+          arquivo_url: c.arquivo_url
         })),
-        modalidades: usuario.prestador.modalidades.map(m => ({
+        modalidades: usuario.prestador.modalidades?.map(m => ({
           id: m.id,
-          tipo: m.tipo
-        })),
-        localizacoes: usuario.prestador.localizacao.map(loc => ({
+          tipo: m.tipo,
+          modelo_veiculo: m.modelo_veiculo,
+          ano_veiculo: m.ano_veiculo,
+          possui_seguro: m.possui_seguro,
+          compartimento_adequado: m.compartimento_adequado,
+          revisao_em_dia: m.revisao_em_dia,
+          antecedentes_criminais: m.antecedentes_criminais
+        })) || [],
+        localizacoes: usuario.prestador.localizacao?.map(loc => ({
           id: loc.id,
           logradouro: loc.logradouro,
           numero: loc.numero,
@@ -413,7 +427,7 @@ const buscarUsuarioCompleto = async (req, res) => {
           cep: loc.cep,
           latitude: loc.latitude,
           longitude: loc.longitude
-        }))
+        })) || []
       };
     }
 

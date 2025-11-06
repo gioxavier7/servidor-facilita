@@ -220,33 +220,28 @@ const buscarCodigoPorNumero = async (codigo) => {
     return []
   }
 }
-
-// usuarioDAO.js
+// ================= BUSCAR USUÁRIO COMPLETO POR ID =================
+// ================= BUSCAR USUÁRIO COMPLETO POR ID =================
 const buscarUsuarioCompletoPorId = async (id) => {
   try {
     const usuario = await prisma.usuario.findUnique({
       where: { id },
       include: {
-        // Dados básicos sempre incluídos
         carteira: true,
-        // Dados de contratante (se existir)
         contratante: {
           include: {
             localizacao: true
-            // necessidade é um campo escalar, não precisa de include
           }
         },
-        // Dados de prestador (se existir)
         prestador: {
           include: {
             documento: true,
-            cnh: true,
             modalidades: true,
             localizacao: true
           }
         }
       }
-    });
+    })
     
     return usuario;
   } catch (error) {
@@ -254,7 +249,6 @@ const buscarUsuarioCompletoPorId = async (id) => {
     throw error;
   }
 };
-
 module.exports = {
   insertUsuario,
   updateUsuario,
