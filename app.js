@@ -12,9 +12,9 @@ const path = require('path')
 const http = require('http')
 
 // carregar variáveis de ambiente dependendo do ambiente
-require('dotenv').config({
-  path: process.env.NODE_ENV === 'production' ? '.env.production' : '.env.development'
-})
+if (process.env.NODE_ENV !== 'production') {
+  require('dotenv').config({ path: '.env.development' });
+}
 
 // ========== CONFIGURAÇÃO DO SERVIDOR ==========
 const app = express()
@@ -128,5 +128,4 @@ app.use('/v1/facilita/recarga', recargaRoutes);
 server.listen(PORT, () => {
   console.log(`🚀 Servidor rodando na porta ${PORT}...`)
   console.log(`🔌 WebSocket ativo na porta ${PORT}`)
-  console.log(`📚 Documentação Swagger: http://localhost:${PORT}/api-docs`)
 })
