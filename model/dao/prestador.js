@@ -51,7 +51,7 @@ const finishCadastro = async (id_prestador) => {
   try {
     const prestador = await prisma.prestador.findUnique({
       where: { id: Number(id_prestador) },
-      include: { documento: true, cnh: true, modalidades: true }
+      include: { documento: true, modalidades: true }
     })
 
     if (!prestador) throw new Error('Prestador não encontrado.')
@@ -64,20 +64,23 @@ const finishCadastro = async (id_prestador) => {
     const temVeiculo = prestador.modalidades.some(
       m => m.tipo !== 'A_PE' && m.tipo !== 'BICICLETA'
     )
-    if (temVeiculo && !prestador.cnh)
+
+    const cnh = prestador.documento.find(d => d.tipo_documento === 'CNH_EAR')
+    if (temVeiculo && !cnh)
       throw new Error('CNH obrigatória para modalidades com veículo.')
 
     // marcar prestador como ativo
     return await prisma.prestador.update({
       where: { id: Number(id_prestador) },
       data: { ativo: true },
-      include: { documento: true, cnh: true, modalidades: true }
+      include: { documento: true, modalidades: true }
     })
   } catch (error) {
     console.error('Erro ao finalizar cadastro:', error)
     throw new Error(error.message || 'Erro interno ao finalizar cadastro.')
   }
 }
+
 
 // ================= LISTAR TODOS PRESTADORES =================
 const selectAllPrestadores = async () => {
@@ -148,41 +151,69 @@ const deletePrestador = async (id) => {
 // ================= ADICIONAR MODALIDADES =================
 const adicionarModalidades = async (id_prestador, modalidades) => {
   try {
-    const modalidadesFormatadas = modalidades.map((tipo) => tipo.toUpperCase())
+    // Primeiro, deleta modalidades existentes para evitar duplicatas
+    await prisma.modalidade_prestador.deleteMany({
+      where: { id_prestador }
+    })
+
+    // Cria as novas modalidades com os dados completos
+    const modalidadesData = modalidades.map(modalidade => ({
+      id_prestador,
+      tipo: modalidade.tipo.toUpperCase(),
+      modelo_veiculo: modalidade.modelo_veiculo || null,
+      ano_veiculo: modalidade.ano_veiculo || null,
+      possui_seguro: modalidade.possui_seguro || false,
+      compartimento_adequado: modalidade.compartimento_adequado || false,
+      revisao_em_dia: modalidade.revisao_em_dia || false,
+      antecedentes_criminais: modalidade.antecedentes_criminais || false
+    }))
 
     await prisma.modalidade_prestador.createMany({
-      data: modalidadesFormatadas.map((tipo) => ({
-        id_prestador,
-        tipo
-      })),
+      data: modalidadesData,
       skipDuplicates: true
     })
 
+    // Retorna as modalidades criadas
     return await prisma.modalidade_prestador.findMany({
-      where: { id_prestador }
+      where: { id_prestador },
+      select: {
+        id: true,
+        tipo: true,
+        modelo_veiculo: true,
+        ano_veiculo: true,
+        possui_seguro: true,
+        compartimento_adequado: true,
+        revisao_em_dia: true,
+        antecedentes_criminais: true,
+        data_criacao: true
+      }
     })
   } catch (error) {
     console.error('Erro ao adicionar modalidades:', error)
-    throw error // não suprime o erro, pra ver o real motivo
+    throw error
   }
 }
 
-
-const selectPrestadorByUsuarioId = async (usuarioId) => {
+// ================= BUSCAR MODALIDADES =================
+const buscarModalidadesPorPrestador = async (id_prestador) => {
   try {
-    const prestador = await prisma.prestador.findFirst({
-      where: { 
-        id_usuario: usuarioId 
-      },
-      include: {
-        usuario: true
+    return await prisma.modalidade_prestador.findMany({
+      where: { id_prestador },
+      select: {
+        id: true,
+        tipo: true,
+        modelo_veiculo: true,
+        ano_veiculo: true,
+        possui_seguro: true,
+        compartimento_adequado: true,
+        revisao_em_dia: true,
+        antecedentes_criminais: true,
+        data_criacao: true
       }
     })
-
-    return prestador || false
   } catch (error) {
-    console.error("Erro ao buscar prestador por usuário ID:", error)
-    return false
+    console.error('Erro ao buscar modalidades:', error)
+    throw error
   }
 }
 
@@ -349,7 +380,6 @@ const buscarPrestadorPorUsuario = async (id_usuario) => {
       include: {
         usuario: true,
         documento: true,
-        cnh: true,
         modalidades: true
       }
     })
@@ -367,7 +397,8 @@ module.exports = {
   updatePrestador,
   deletePrestador,
   adicionarModalidades,
-  selectPrestadorByUsuarioId,
+  adicionarModalidades,
+  buscarModalidadesPorPrestador,
   atualizarLocaisPrestador,
   atualizarDocumentosPrestador,
   selectPrestadorCompletoByUsuarioId,

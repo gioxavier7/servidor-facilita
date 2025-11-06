@@ -287,12 +287,31 @@ model prestador {
   documento    documento[]
   pagamento    pagamento[]
   recusas      RecusaServico[]
+  ativo        Boolean                  @default(false)
   usuario      usuario                  @relation(fields: [id_usuario], references: [id])
   servico      servico[]
   localizacao  localizacao[]            @relation("localizacaotoprestador")
+  modalidades  modalidade_prestador[]   // ADICIONE ESTA LINHA
 
   @@index([id_usuario])
   @@map("prestador")
+}
+
+model modalidade_prestador {
+  id                    Int               @id @default(autoincrement())
+  id_prestador          Int
+  tipo                  TipoModalidade
+  modelo_veiculo        String?
+  ano_veiculo           Int?
+  possui_seguro         Boolean           @default(false)
+  compartimento_adequado Boolean          @default(false)
+  revisao_em_dia        Boolean           @default(false)
+  antecedentes_criminais Boolean          @default(false)
+  data_criacao          DateTime          @default(now())
+  prestador             prestador         @relation(fields: [id_prestador], references: [id], onDelete: Cascade)
+
+  @@unique([id_prestador, tipo])
+  @@map("modalidade_prestador")
 }
 
 model recarga_carteira {
@@ -392,6 +411,14 @@ enum StatusRecarga {
   CONFIRMADA
   CANCELADA
   FALHOU
+}
+
+enum TipoModalidade {
+  MOTO
+  CARRO
+  VAN
+  CAMINHAO
+  BICICLETA
 }
 
 enum documento_tipo_documento {

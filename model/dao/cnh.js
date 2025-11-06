@@ -1,5 +1,5 @@
 /**
- * DAO responsável pelo CRUD de CNH usando Prisma
+ * DAO responsável pelo CRUD de CNH (tratada como documento)
  * Data: 16/09/2025
  * Dev: Giovanna
  * Versão: 1.0
@@ -11,14 +11,14 @@ const prisma = new PrismaClient()
 // ================= INSERIR CNH =================
 const insertCNH = async (cnh) => {
   try {
-    const novaCNH = await prisma.cnh.create({
+    const novaCNH = await prisma.documento.create({
       data: {
         id_prestador: cnh.id_prestador,
-        numero_cnh: cnh.numero_cnh,
-        categoria: cnh.categoria,
-        validade: cnh.validade,
-        possui_ear: cnh.possui_ear,
-      },
+        tipo_documento: 'CNH_EAR',
+        valor: cnh.numero_cnh,
+        data_validade: cnh.validade,
+        arquivo_url: cnh.arquivo_url
+      }
     })
     return novaCNH
   } catch (error) {
