@@ -90,7 +90,6 @@ const selectAllPrestadores = async () => {
         usuario: true, 
         localizacao: true, 
         documento: true,
-        cnh: true,
         modalidades: true
       }
     })

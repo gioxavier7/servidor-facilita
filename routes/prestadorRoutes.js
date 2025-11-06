@@ -12,7 +12,7 @@ router.post('/modalidades', autenticarToken, prestadorController.adicionarModali
 router.patch('/finalizar', autenticarToken, prestadorController.finalizarCadastro);
 
 // CRUD geral
-//router.get('/', prestadorController.listarPrestadores);
+router.get('/', prestadorController.listarPrestadores);
 router.get('/', prestadorController.buscarPrestador);
 router.put('/:id', autenticarToken, prestadorController.atualizarPrestador);
 router.delete('/:id', autenticarToken, prestadorController.deletarPrestador);
