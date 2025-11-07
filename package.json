@@ -16,10 +16,10 @@
     "socketio": "^1.0.0",
     "swagger-jsdoc": "^6.2.8",
     "swagger-ui-express": "^5.0.1",
-    "twilio": "^5.10.2"
+    "twilio": "^5.10.2",
+    "cross-env": "^10.1.0"
   },
   "devDependencies": {
-    "cross-env": "^10.1.0",
     "nodemon": "^3.1.10",
     "prisma": "^6.16.2"
   },
