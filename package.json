@@ -26,6 +26,8 @@
   "scripts": {
     "dev": "cross-env NODE_ENV=development nodemon app.js",
     "build": "npx prisma generate",
+    "prisma:generate": "npx prisma generate",
+    "prisma:migrate": "npx prisma migrate deploy",
     "start": "npm run build && cross-env NODE_ENV=production node app.js"
   }
 }
