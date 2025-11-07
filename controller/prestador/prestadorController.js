@@ -107,9 +107,23 @@ const finalizarCadastro = async (req, res) => {
     }
 
     const prestadorFinalizado = await prestadorDAO.finishCadastro(prestador.id)
+    
+    // Gerar novo token JWT com tipo_conta atualizado
+    const novoToken = jwt.sign(
+      {
+        id: id_usuario,
+        tipo_conta: 'PRESTADOR', // AGORA ATUALIZADO
+        email: req.user.email,
+        id_prestador: prestador.id
+      },
+      process.env.JWT_SECRET,
+      { expiresIn: process.env.JWT_EXPIRES_IN || '24h' }
+    )
+
     return res.status(200).json({
       message: 'Cadastro finalizado com sucesso!',
-      prestador: prestadorFinalizado
+      prestador: prestadorFinalizado,
+      token: novoToken
     })
   } catch (error) {
     console.error('Erro ao finalizar cadastro:', error)

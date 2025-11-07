@@ -47,11 +47,16 @@ const insertPrestadorBasico = async (prestador) => {
 };
 
 // ================= FINALIZAR CADASTRO =================
+// ================= FINALIZAR CADASTRO =================
 const finishCadastro = async (id_prestador) => {
   try {
     const prestador = await prisma.prestador.findUnique({
       where: { id: Number(id_prestador) },
-      include: { documento: true, modalidades: true }
+      include: { 
+        documento: true, 
+        modalidades: true,
+        usuario: true // INCLUIR USUÁRIO PARA ATUALIZAR
+      }
     })
 
     if (!prestador) throw new Error('Prestador não encontrado.')
@@ -69,11 +74,21 @@ const finishCadastro = async (id_prestador) => {
     if (temVeiculo && !cnh)
       throw new Error('CNH obrigatória para modalidades com veículo.')
 
+    // ATUALIZAR TIPO_CONTA DO USUÁRIO para 'prestador'
+    await prisma.usuario.update({
+      where: { id: prestador.id_usuario },
+      data: { tipo_conta: 'PRESTADOR' }
+    })
+
     // marcar prestador como ativo
     return await prisma.prestador.update({
       where: { id: Number(id_prestador) },
       data: { ativo: true },
-      include: { documento: true, modalidades: true }
+      include: { 
+        documento: true, 
+        modalidades: true,
+        usuario: true // Incluir usuário atualizado na resposta
+      }
     })
   } catch (error) {
     console.error('Erro ao finalizar cadastro:', error)
@@ -108,7 +123,6 @@ const selectPrestadorById = async (id) => {
         usuario: true, 
         localizacao: true, 
         documento: true,
-        cnh: true,
         modalidades: true
       }
     })
@@ -331,7 +345,6 @@ const updatePrestador = async (id, dados) => {
         usuario: true,
         localizacao: true,
         documento: true,
-        cnh: true,
         modalidades: true
       }
     })
@@ -361,7 +374,6 @@ const selectPrestadorCompletoByUsuarioId = async (usuarioId) => {
         },
         localizacao: true,
         documento: true,
-        cnh: true,
         modalidades: true
       }
     });

@@ -51,15 +51,6 @@ app.use((req, res, next) => {
   next()
 })
 
-// ========== SWAGGER DOCUMENTATION ==========
-try {
-  const setupSwagger = require('./swagger');
-  setupSwagger(app);
-  console.log('📚 Swagger documentation available at: http://localhost:' + PORT + '/api-docs');
-} catch (error) {
-  console.log('⚠️  Swagger documentation not loaded:', error.message);
-}
-
 // ========== IMPORTAÇÃO DAS ROTAS ==========
 const usuarioRoutes = require('./routes/usuarioRoutes')
 const contratanteRoutes = require('./routes/contratanteRoutes')
