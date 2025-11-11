@@ -291,7 +291,7 @@ model prestador {
   usuario      usuario                  @relation(fields: [id_usuario], references: [id])
   servico      servico[]
   localizacao  localizacao[]            @relation("localizacaotoprestador")
-  modalidades  modalidade_prestador[]   // ADICIONE ESTA LINHA
+  modalidades  modalidade_prestador[] 
 
   @@index([id_usuario])
   @@map("prestador")
