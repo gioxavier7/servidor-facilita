@@ -28,5 +28,8 @@
     "start": "node app.js",
     "prisma:generate": "prisma generate",
     "postinstall": "prisma generate"
-  }
+  },
+  "engines": {
+  "node": "22.x"
+}
 }
