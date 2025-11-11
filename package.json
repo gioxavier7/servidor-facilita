@@ -25,6 +25,7 @@
   },
   "scripts": {
     "dev": "cross-env NODE_ENV=development nodemon app.js",
-    "start": "node app.js"
+    "start": "node app.js",
+    "postinstall": "npx prisma generate"
   }
 }
