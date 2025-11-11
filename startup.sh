@@ -1,30 +1,27 @@
 #!/bin/bash
 cd /home/site/wwwroot
 
-echo "=== INICIANDO DEPLOY NO AZURE ==="
-echo "Node.js version: $(node -v)"
-echo "NPM version: $(npm -v)"
+echo "=== DEPLOY AZURE - VERSÃO SIMPLIFICADA ==="
+echo "Node: $(node -v)"
+echo "NPM: $(npm -v)"
 
-# Forçar reinstalação para garantir que tudo está correto
-echo "1. Removendo node_modules existente..."
+# Ignorar o node_modules.tar.gz do Azure e forçar instalação limpa
+echo "1. Limpando instalação anterior..."
 rm -rf node_modules
-rm -rf package-lock.json
+rm -f package-lock.json
 
-echo "2. Instalando dependências..."
-npm install --production=false
+echo "2. Instalando dependências (incluindo dev)..."
+npm install --production=false --verbose
 
-echo "3. Gerando cliente Prisma..."
-npx prisma generate
+echo "3. Gerando Prisma Client..."
+npx prisma generate --schema=./prisma/schema.prisma
 
-echo "4. Verificando se o Prisma foi gerado..."
-if [ -d "node_modules/.prisma" ] || [ -d "node_modules/@prisma/client" ]; then
-    echo "✅ Prisma Client gerado com sucesso!"
-    echo "Conteúdo de node_modules/.prisma:"
-    ls -la node_modules/.prisma/ || echo "Não encontrado"
+echo "4. Verificação final..."
+if [ -f "node_modules/.prisma/client/index.js" ]; then
+    echo "✅ PRISMA CLIENT GERADO COM SUCESSO!"
 else
-    echo "❌ ERRO: Prisma Client não foi gerado"
-    echo "Listando node_modules:"
-    ls node_modules/ | grep -i prisma || echo "Nenhum arquivo Prisma encontrado"
+    echo "❌ FALHA: Prisma Client não encontrado"
+    find node_modules -name "*prisma*" -type d | head -10
     exit 1
 fi
 
