@@ -1,6 +1,7 @@
 {
   "dependencies": {
     "@prisma/client": "^6.16.2",
+    "prisma": "^6.16.2",
     "bcrypt": "^6.0.0",
     "bcryptjs": "^3.0.2",
     "body-parser": "^2.2.0",
@@ -20,12 +21,11 @@
     "cross-env": "^7.0.3"
   },
   "devDependencies": {
-    "nodemon": "^3.1.10",
-    "prisma": "^6.16.2"
+    "nodemon": "^3.1.10"
   },
   "scripts": {
     "dev": "cross-env NODE_ENV=development nodemon app.js",
     "postinstall": "prisma generate",
-    "start": "node app.js"
+    "start": "prisma generate && node app.js"
   }
 }
