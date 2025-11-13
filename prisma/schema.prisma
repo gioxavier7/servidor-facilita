@@ -4,7 +4,7 @@ generator client {
 
 datasource db {
   provider = "mysql"
-  url      = env("DATABASE_URL")
+  url      = "mysql://admin_facilita:%21Facilita%40123456@dbfacilita.mysql.database.azure.com:3306/dbfacilita?sslmode=REQUIRED&sslca=/home/site/wwwroot/DigiCertGlobalRootG2.crt.pem"
 }
 
 model recuperacaoSenha {
