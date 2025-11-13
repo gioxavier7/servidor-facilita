@@ -315,7 +315,7 @@ const listarServicos = async (req, res) => {
     // PRESTADORES tem serviços disponíveis + seus serviços aceitos
     else if (req.user.tipo_conta === 'PRESTADOR') {
       
-      const prestador = await prestadorDAO.selectPrestadorByUsuarioId(req.user.id)
+      const prestador = await prestadorDAO.selectPrestadorCompletoByUsuarioId(req.user.id)
       
       if (!prestador) {
         return res.status(404).json({ 
@@ -685,7 +685,7 @@ const listarMeusServicos = async (req, res) => {
       })
     }
   
-    const prestador = await prestadorDAO.selectPrestadorByUsuarioId(req.user.id)
+    const prestador = await prestadorDAO.selectPrestadorCompletoByUsuarioId(req.user.id)
     
     if (!prestador) {
       return res.status(404).json({ 
