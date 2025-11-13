@@ -14,7 +14,7 @@ echo "2. Instalando dependências (incluindo dev)..."
 npm install --production=false --verbose
 
 echo "3. Gerando Prisma Client..."
-npx prisma generate --schema=./prisma/schema.prisma
+npx prisma generate
 
 echo "4. Verificação final..."
 if [ -f "node_modules/.prisma/client/index.js" ]; then
