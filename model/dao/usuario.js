@@ -5,7 +5,7 @@
  * Versão: 1.2
  */
 
-const { PrismaClient } = require('@prisma/client')
+const { PrismaClient } = require('../../prisma/generated/client')
 const prisma = new PrismaClient()
 
 // ================= INSERIR USUÁRIO =================

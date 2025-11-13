@@ -5,7 +5,7 @@
  * versão: 2.0 - Atualizado para novo schema
  */
 
-const { PrismaClient } = require('@prisma/client')
+const { PrismaClient } = require('../../prisma/generated/client')
 const prisma = new PrismaClient()
 
 /**

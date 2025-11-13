@@ -5,7 +5,7 @@
  * versão: 1.1
  */
 
-const { PrismaClient, statusServico } = require('@prisma/client')
+const { PrismaClient } = require('../../prisma/generated/client')
 const prisma = new PrismaClient()
 
 /**

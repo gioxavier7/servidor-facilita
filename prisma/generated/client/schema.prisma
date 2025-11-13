@@ -1,0 +1,439 @@
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "debian-openssl-3.0.x"]
+  output        = "../prisma/generated/client"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model recuperacaoSenha {
+  id        Int      @id @default(autoincrement())
+  usuarioId Int
+  codigo    String   @db.VarChar(6)
+  expira    DateTime
+  usado     Boolean  @default(false)
+  criadoEm  DateTime @default(now()) @map("criado_em")
+  usuario   usuario  @relation(fields: [usuarioId], references: [id])
+
+  @@index([usuarioId])
+  @@map("recuperacao_senha")
+}
+
+model categoria {
+  id          Int       @id @default(autoincrement())
+  nome        String    @unique
+  descricao   String?   @db.Text
+  icone       String?   @db.VarChar(50)
+  preco_base  Decimal?  @db.Decimal(10, 2)
+  tempo_medio Int?
+  servicos    servico[]
+
+  @@map("categoria")
+}
+
+model servico_parada {
+  id                     Int      @id @default(autoincrement())
+  id_servico             Int
+  ordem                  Int
+  tipo                   String   @db.VarChar(20)
+  lat                    Decimal  @db.Decimal(10, 8)
+  lng                    Decimal  @db.Decimal(11, 8)
+  descricao              String?  @db.VarChar(255)
+  endereco_completo      String?
+  tempo_estimado_chegada Int?
+  data_criacao           DateTime @default(now())
+  servico                servico  @relation(fields: [id_servico], references: [id], onDelete: Cascade)
+
+  @@index([id_servico])
+  @@index([id_servico, ordem])
+  @@map("servico_parada")
+}
+
+model servico {
+  id               Int                      @id @default(autoincrement())
+  id_contratante   Int
+  id_prestador     Int?
+  id_categoria     Int?
+  descricao        String
+  status           statusServico            @default(PENDENTE)
+  data_solicitacao DateTime                 @default(now())
+  data_conclusao   DateTime?
+  data_confirmacao DateTime?
+  id_localizacao   Int?
+  valor            Decimal?                 @db.Decimal(10, 2)
+  tempo_estimado   Int?
+  data_inicio      DateTime?
+  data_chegada     DateTime?
+  atualizacoes     atualizacao_tempo_real[]
+  avaliacao        avaliacao?
+  mensagens        chat_servico[]
+  notificacoes     notificacao[]
+  pagamentos       pagamento[]
+  rastreamentos    rastreamento_servico[]
+  recusas          RecusaServico[]
+  categoria        categoria?               @relation(fields: [id_categoria], references: [id])
+  contratante      contratante              @relation(fields: [id_contratante], references: [id])
+  localizacao      localizacao?             @relation(fields: [id_localizacao], references: [id])
+  prestador        prestador?               @relation(fields: [id_prestador], references: [id])
+  paradas          servico_parada[]
+
+  @@index([id_categoria])
+  @@index([id_contratante])
+  @@index([id_localizacao])
+  @@index([id_prestador])
+  @@map("servico")
+}
+
+model rastreamento_servico {
+  id         Int                @id @default(autoincrement())
+  id_servico Int
+  status     StatusRastreamento
+  latitude   Decimal?
+  longitude  Decimal?
+  endereco   String?
+  data_hora  DateTime           @default(now())
+  observacao String?            @db.Text
+  servico    servico            @relation(fields: [id_servico], references: [id])
+
+  @@index([id_servico])
+  @@map("rastreamento_servico")
+}
+
+model atualizacao_tempo_real {
+  id           Int             @id @default(autoincrement())
+  id_servico   Int
+  id_prestador Int
+  tipo         TipoAtualizacao
+  latitude     Decimal?
+  longitude    Decimal?
+  mensagem     String?         @db.Text
+  url_foto     String?
+  data_criacao DateTime        @default(now())
+  prestador    prestador       @relation(fields: [id_prestador], references: [id])
+  servico      servico         @relation(fields: [id_servico], references: [id])
+
+  @@index([id_servico])
+  @@index([id_prestador])
+  @@map("atualizacao_tempo_real")
+}
+
+model chat_servico {
+  id             Int         @id @default(autoincrement())
+  id_servico     Int
+  id_contratante Int
+  id_prestador   Int
+  mensagem       String      @db.Text
+  tipo           String
+  url_anexo      String?
+  enviado_por    String
+  lida           Boolean     @default(false)
+  data_envio     DateTime    @default(now())
+  contratante    contratante @relation(fields: [id_contratante], references: [id])
+  prestador      prestador   @relation(fields: [id_prestador], references: [id])
+  servico        servico     @relation(fields: [id_servico], references: [id])
+
+  @@index([id_servico])
+  @@index([id_contratante])
+  @@index([id_prestador])
+  @@map("chat_servico")
+}
+
+model notificacao {
+  id           Int      @id @default(autoincrement())
+  id_usuario   Int
+  id_servico   Int?
+  tipo         String
+  titulo       String
+  mensagem     String
+  lida         Boolean  @default(false)
+  data_criacao DateTime @default(now())
+  servico      servico? @relation(fields: [id_servico], references: [id])
+  usuario      usuario  @relation(fields: [id_usuario], references: [id])
+
+  @@index([id_servico])
+  @@index([id_usuario])
+  @@map("notificacao")
+}
+
+model avaliacao {
+  id             Int         @id @default(autoincrement())
+  id_servico     Int         @unique
+  id_contratante Int
+  id_prestador   Int
+  nota           Int
+  comentario     String?     @db.Text
+  data_avaliacao DateTime?   @default(now())
+  contratante    contratante @relation(fields: [id_contratante], references: [id])
+  prestador      prestador   @relation(fields: [id_prestador], references: [id])
+  servico        servico     @relation(fields: [id_servico], references: [id])
+
+  @@index([id_contratante])
+  @@index([id_prestador])
+  @@map("avaliacao")
+}
+
+model pagamento {
+  id             Int             @id @default(autoincrement())
+  id_servico     Int
+  id_contratante Int
+  id_prestador   Int
+  valor          Decimal         @db.Decimal(10, 2)
+  metodo         metodoPagamento @default(CARTEIRA_PAGBANK)
+  status         statusPagamento @default(PENDENTE)
+  id_pagbank     String?
+  data_pagamento DateTime        @default(now())
+  contratante    contratante     @relation(fields: [id_contratante], references: [id])
+  prestador      prestador       @relation(fields: [id_prestador], references: [id])
+  servico        servico         @relation(fields: [id_servico], references: [id])
+
+  @@index([id_contratante])
+  @@index([id_prestador])
+  @@index([id_servico])
+  @@map("pagamento")
+}
+
+model carteira {
+  id            Int                 @id @default(autoincrement())
+  id_usuario    Int                 @unique
+  chave_pagbank String
+  saldo         Decimal             @default(0.00) @db.Decimal(10, 2)
+  data_criacao  DateTime            @default(now())
+  usuario       usuario             @relation(fields: [id_usuario], references: [id])
+  transacoes    transacaoCarteira[]
+
+  @@map("carteira")
+}
+
+model transacaoCarteira {
+  id             Int           @id @default(autoincrement())
+  id_carteira    Int
+  tipo           tipoTransacao
+  valor          Decimal       @db.Decimal(10, 2)
+  descricao      String?
+  data_transacao DateTime      @default(now())
+  carteira       carteira      @relation(fields: [id_carteira], references: [id])
+
+  @@index([id_carteira])
+  @@map("transacao_carteira")
+}
+
+model localizacao {
+  id          Int           @id @default(autoincrement())
+  logradouro  String
+  numero      String?
+  bairro      String
+  cidade      String
+  cep         String?
+  latitude    Decimal
+  longitude   Decimal
+  contratante contratante[]
+  servicos    servico[]
+  prestador   prestador[]   @relation("localizacaotoprestador")
+
+  @@map("localizacao")
+}
+
+model contratante {
+  id             Int                      @id @default(autoincrement())
+  necessidade    contratante_necessidade?
+  id_usuario     Int                      @unique
+  id_localizacao Int
+  cpf            String?                  @unique
+  avaliacao      avaliacao[]
+  mensagens      chat_servico[]
+  localizacao    localizacao              @relation(fields: [id_localizacao], references: [id])
+  usuario        usuario                  @relation(fields: [id_usuario], references: [id])
+  pagamento      pagamento[]
+  servico        servico[]
+
+  @@index([id_localizacao])
+  @@map("contratante")
+}
+
+model documento {
+  id             Int                      @id @default(autoincrement())
+  tipo_documento documento_tipo_documento
+  valor          String
+  data_validade  DateTime?
+  arquivo_url    String?
+  id_prestador   Int
+  prestador      prestador                @relation(fields: [id_prestador], references: [id])
+
+  @@index([id_prestador])
+  @@map("documento")
+}
+
+model RecusaServico {
+  id           Int      @id @default(autoincrement())
+  id_servico   Int
+  id_prestador Int
+  motivo       String?
+  data_recusa  DateTime @default(now())
+
+  servico   servico   @relation(fields: [id_servico], references: [id], onDelete: Cascade)
+  prestador prestador @relation(fields: [id_prestador], references: [id], onDelete: Cascade)
+
+  @@unique([id_servico, id_prestador])
+  @@map("recusa_servico")
+}
+
+model prestador {
+  id           Int                      @id @default(autoincrement())
+  id_usuario   Int                      @unique
+  atualizacoes atualizacao_tempo_real[]
+  avaliacao    avaliacao[]
+  mensagens    chat_servico[]
+  documento    documento[]
+  pagamento    pagamento[]
+  recusas      RecusaServico[]
+  ativo        Boolean                  @default(false)
+  usuario      usuario                  @relation(fields: [id_usuario], references: [id])
+  servico      servico[]
+  localizacao  localizacao[]            @relation("localizacaotoprestador")
+  modalidades  modalidade_prestador[]
+
+  @@index([id_usuario])
+  @@map("prestador")
+}
+
+model modalidade_prestador {
+  id                     Int            @id @default(autoincrement())
+  id_prestador           Int
+  tipo                   TipoModalidade
+  modelo_veiculo         String?
+  ano_veiculo            Int?
+  possui_seguro          Boolean        @default(false)
+  compartimento_adequado Boolean        @default(false)
+  revisao_em_dia         Boolean        @default(false)
+  antecedentes_criminais Boolean        @default(false)
+  data_criacao           DateTime       @default(now())
+  prestador              prestador      @relation(fields: [id_prestador], references: [id], onDelete: Cascade)
+
+  @@unique([id_prestador, tipo])
+  @@map("modalidade_prestador")
+}
+
+model recarga_carteira {
+  id               Int           @id @default(autoincrement())
+  id_usuario       Int
+  valor            Decimal       @db.Decimal(10, 2)
+  metodo           MetodoRecarga @default(PIX)
+  status           StatusRecarga @default(PENDENTE)
+  id_pagbank       String?
+  data_solicitacao DateTime      @default(now())
+  data_confirmacao DateTime?
+  usuario          usuario       @relation(fields: [id_usuario], references: [id])
+
+  @@index([id_usuario])
+  @@map("recarga_carteira")
+}
+
+model usuario {
+  id           Int                 @id @default(autoincrement())
+  nome         String
+  senha_hash   String
+  foto_perfil  String?             @db.VarChar(255)
+  email        String              @unique
+  telefone     String              @unique
+  tipo_conta   usuario_tipo_conta?
+  criado_em    DateTime            @default(now())
+  carteira     carteira?
+  contratante  contratante?
+  notificacoes notificacao[]
+  prestador    prestador?
+  recarga      recarga_carteira[]
+  recuperacoes recuperacaoSenha[]
+}
+
+enum statusServico {
+  PENDENTE
+  EM_ANDAMENTO
+  FINALIZADO
+  CANCELADO
+  CONCLUIDO
+}
+
+enum metodoPagamento {
+  CARTEIRA_PAGBANK
+  PIX
+  CARTAO
+}
+
+enum statusPagamento {
+  PENDENTE
+  PAGO
+  FALHOU
+  CANCELADO
+}
+
+enum tipoTransacao {
+  ENTRADA
+  SAIDA
+}
+
+enum contratante_necessidade {
+  IDOSO
+  DEF_VISUAL
+  DEF_AUDITIVA
+  DEF_MOTORA
+  DEF_INTELECTUAL
+  NENHUMA
+}
+
+enum usuario_tipo_conta {
+  CONTRATANTE
+  PRESTADOR
+}
+
+enum StatusRastreamento {
+  A_CAMINHO
+  CHEGOU_LOCAL
+  INICIADO
+  FINALIZADO
+}
+
+enum TipoAtualizacao {
+  LOCALIZACAO
+  STATUS
+  MENSAGEM
+  FOTO
+}
+
+enum MetodoRecarga {
+  PIX
+  CARTAO
+  BOLETO
+}
+
+enum StatusRecarga {
+  PENDENTE
+  CONFIRMADA
+  CANCELADA
+  FALHOU
+}
+
+enum TipoModalidade {
+  MOTO
+  CARRO
+  VAN
+  CAMINHAO
+  BICICLETA
+  A_PE
+}
+
+enum documento_tipo_documento {
+  RG
+  CPF
+  CNH_EAR
+  TIPO_VEICULO
+  MODELO_VEICULO
+  ANO_VEICULO
+  SEGURO_VEICULO
+  COMPARTIMENTO_VEICULO
+  REVISAO_VEICULO
+  ANTECEDENTES_CRIMINAIS
+  CONTATO_EMERGENCIA
+}
