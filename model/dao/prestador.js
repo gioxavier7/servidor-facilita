@@ -361,7 +361,7 @@ const updatePrestador = async (id, dados) => {
  */
 const selectPrestadorCompletoByUsuarioId = async (usuarioId) => {
   try {
-    return await prisma.prestador.findUnique({
+    return await prisma.prestador.findFirst({
       where: { id_usuario: usuarioId },
       include: {
         usuario: {

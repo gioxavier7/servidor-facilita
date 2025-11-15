@@ -5,7 +5,7 @@
  * versão: 1.1
  */
 
-const { PrismaClient } = require('../../prisma/generated/client')
+const { PrismaClient, statusServico } = require('../../prisma/generated/client')
 const prisma = new PrismaClient()
 
 /**
@@ -352,11 +352,6 @@ const finalizarServico = async (servicoId, prestadorId) => {
   }
 }
 
-/**
- * busca serviços por prestador
- * @param {number} prestadorId 
- * @returns {Array|false} - lista de serviços do prestador
- */
 const selectServicosPorPrestador = async (prestadorId) => {
   try {
     const servicos = await prisma.servico.findMany({
@@ -367,16 +362,16 @@ const selectServicosPorPrestador = async (prestadorId) => {
       include: {
         contratante: {
           include: {
-            usuario: true,
-            paradas: {
-            orderBy: { 
-              ordem: 'asc'
-            }
-        }
+            usuario: true
           }
         },
         categoria: true,
-        localizacao: true
+        localizacao: true,
+        paradas: {
+          orderBy: { 
+            ordem: 'asc'
+          }
+        }
       }
     })
 
