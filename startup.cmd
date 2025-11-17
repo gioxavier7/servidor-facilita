@@ -1,9 +1,0 @@
-@echo off
-echo Gerando cliente Prisma...
-call npx prisma generate
-if %errorlevel% neq 0 (
-    echo Falha ao gerar cliente Prisma, tentando metodo alternativo...
-    call node node_modules/prisma/build/index.js generate
-)
-echo Iniciando aplicacao...
-node app.js

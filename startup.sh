@@ -13,11 +13,15 @@ rm -f package-lock.json
 echo "2. Instalando dependências (incluindo dev)..."
 npm install --production=false --verbose
 
+# ... (restante do script)
+
 echo "3. Gerando Prisma Client..."
-npx prisma generate
+# REMOVER --schema=./prisma/schema.prisma
+npx prisma generate 
 
 echo "4. Verificação final..."
-if [ -f "node_modules/.prisma/client/index.js" ]; then
+# MUDAR A VERIFICAÇÃO PARA O NOVO CAMINHO:
+if [ -f "prisma/generated/client/index.js" ]; then
     echo "✅ PRISMA CLIENT GERADO COM SUCESSO!"
 else
     echo "❌ FALHA: Prisma Client não encontrado"

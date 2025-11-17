@@ -1,12 +1,13 @@
 generator client {
   provider      = "prisma-client-js"
-  binaryTargets = ["native", "debian-openssl-3.0.x"]
-  output        = "../prisma/generated/client"
+  binaryTargets = ["native", "debian-openssl-3.0.x"] // CORREÇÃO DE BINÁRIO
+  output        = "./prisma/generated/client"        // CORREÇÃO DE CAMINHO
 }
 
 datasource db {
   provider = "mysql"
-  url      = env("DATABASE_URL")
+  // CORREÇÃO DE SSL (APENAS PARA O BUILD TEMPORARIAMENTE)
+  url      = "mysql://admin_facilita:%21Facilita%40123456@dbfacilita.mysql.database.azure.com:3306/dbfacilita?sslaccept=strict" 
 }
 
 model recuperacaoSenha {
