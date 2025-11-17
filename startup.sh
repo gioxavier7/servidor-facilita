@@ -6,7 +6,6 @@ echo "Node: $(node -v)"
 echo "NPM: $(npm -v)"
 
 # 1. Limpando instalacao anterior e pastas problematicas:
-# O comando 'sudo' foi REMOVIDO pois nao e suportado no container do Azure App Service.
 echo "1. Limpando instalacao anterior e pastas problematicas..."
 rm -rf node_modules _del_node_modules .prisma
 rm -f package-lock.json
