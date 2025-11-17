@@ -5,27 +5,28 @@ echo "=== DEPLOY AZURE - VERSÃO SIMPLIFICADA ==="
 echo "Node: $(node -v)"
 echo "NPM: $(npm -v)"
 
-# Ignorar o node_modules.tar.gz do Azure e forçar instalação limpa
-echo "1. Limpando instalação anterior..."
-rm -rf node_modules
+# Corrigir o erro 'Permission denied' forçando a limpeza como root (sudo)
+echo "1. Limpando instalação anterior e pastas problemáticas..."
+sudo rm -rf node_modules _del_node_modules .prisma # Adicionado sudo e outras pastas do Oryx/Prisma
 rm -f package-lock.json
 
 echo "2. Instalando dependências (incluindo dev)..."
 npm install --production=false --verbose
 
-# ... (restante do script)
-
+# O arquivo schema.prisma já foi configurado com o output customizado e SSL, agora é só gerar.
 echo "3. Gerando Prisma Client..."
-# REMOVER --schema=./prisma/schema.prisma
 npx prisma generate 
 
-echo "4. Verificação final..."
-# MUDAR A VERIFICAÇÃO PARA O NOVO CAMINHO:
+echo "4. Verificação final com novo caminho..."
+# O caminho de verificação foi atualizado para o 'output' definido em schema.prisma
 if [ -f "prisma/generated/client/index.js" ]; then
     echo "✅ PRISMA CLIENT GERADO COM SUCESSO!"
 else
     echo "❌ FALHA: Prisma Client não encontrado"
-    find node_modules -name "*prisma*" -type d | head -10
+    echo "--- LOG DE ERRO PRISMA ---"
+    # Tentar forçar o log de erro para entender o problema de conexão/binário, se ocorrer.
+    npx prisma generate --verbose
+    echo "--- FIM LOG DE ERRO PRISMA ---"
     exit 1
 fi
 
