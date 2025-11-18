@@ -382,6 +382,55 @@ const selectServicosPorPrestador = async (prestadorId) => {
   }
 }
 
+const selectServicosPorPrestadorEStatus = async (prestadorId, status, page = 1, limit = 10) => {
+  try {
+    const skip = (page - 1) * limit
+    
+    const servicos = await prisma.servico.findMany({
+      where: { 
+        id_prestador: prestadorId,
+        status: status
+      },
+      skip: skip,
+      take: parseInt(limit),
+      orderBy: { data_solicitacao: 'desc' },
+      include: {
+        contratante: {
+          include: {
+            usuario: true
+          }
+        },
+        categoria: true,
+        localizacao: true,
+        paradas: {
+          orderBy: { 
+            ordem: 'asc'
+          }
+        }
+      }
+    })
+
+    return servicos
+  } catch (error) {
+    console.error('Erro ao buscar serviços do prestador por status: ', error)   
+    return false
+  }
+}
+
+const countServicosPorPrestador = async (prestadorId) => {
+  try {
+    const count = await prisma.servico.count({
+      where: { 
+        id_prestador: prestadorId 
+      }
+    })
+    return count
+  } catch (error) {
+    console.error('Erro ao contar serviços do prestador: ', error)   
+    return 0
+  }
+}
+
 /**
  * busca serviços por contratante com paradas
  */
@@ -734,5 +783,7 @@ module.exports = {
   pesquisarPorDescricao,
   filtrarPorCategoria,
   recusarServico,
-  selectServicosRecusados
+  selectServicosRecusados,
+  selectServicosPorPrestadorEStatus,
+  countServicosPorPrestador
 }

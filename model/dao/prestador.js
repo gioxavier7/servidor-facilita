@@ -400,6 +400,20 @@ const buscarPrestadorPorUsuario = async (id_usuario) => {
   }
 }
 
+const selectPrestadorByUsuarioId = async (usuarioId) => {
+  try {
+    const prestador = await prisma.prestador.findFirst({
+      where: { 
+        id_usuario: usuarioId 
+      }
+    })
+    return prestador
+  } catch (error) {
+    console.error('Erro ao buscar prestador por usuário ID: ', error)   
+    return false
+  }
+}
+
 module.exports = {
   insertPrestadorBasico,
   finishCadastro,
@@ -413,5 +427,6 @@ module.exports = {
   atualizarLocaisPrestador,
   atualizarDocumentosPrestador,
   selectPrestadorCompletoByUsuarioId,
-  buscarPrestadorPorUsuario
+  buscarPrestadorPorUsuario,
+  selectPrestadorByUsuarioId
 }
