@@ -1,9 +1,9 @@
 /**
  * objetivo: Serviço de WebSocket para comunicação em tempo real
  * funcionalidades: Chat, Localização, Status e Chamadas de Voz/Video (WebRTC)
- * data: 25/09/2025  
+ * data: 25/09/2025
  * dev: Giovanna
- * versão: 2.0 - Com WebRTC
+ * versão: 2.0 - Com WebRTC (corrigido e endurecido)
  */
 
 const { Server } = require('socket.io');
@@ -11,8 +11,8 @@ const { Server } = require('socket.io');
 class SocketService {
   constructor() {
     this.io = null;
-    this.connectedUsers = new Map(); // mapa de usuários conectados
-    this.activeCalls = new Map(); // rastreamento de chamadas ativas
+    this.connectedUsers = new Map(); // chave = socket.id, valor = { userId, userType, userName, socketId, connectedAt }
+    this.activeCalls = new Map(); // callId -> call info
   }
 
   /**
@@ -37,500 +37,603 @@ class SocketService {
     this.io.on('connection', (socket) => {
       console.log('👤 Nova conexão Socket:', socket.id);
 
-      // Log para debug (opcional)
+      // Log para debug (opcional) - evita spam com ICE candidates
       socket.onAny((eventName, ...args) => {
-        if (!eventName.includes('call:ice-candidate')) { // Não logar ICE candidates (muito spam)
+        if (!eventName.includes('call:ice-candidate')) {
           console.log(`📨 EVENTO RECEBIDO: ${eventName}`, args);
         }
       });
 
-      // === EVENTOS EXISTENTES ===
-      
-      // Usuário se conecta e informa seu ID
-      socket.on('user_connected', (userData) => {
-        this.handleUserConnected(socket, userData);
-      });
+      // EVENTOS
+      socket.on('user_connected', (userData) => this.handleUserConnected(socket, userData));
+      socket.on('join_servico', (servicoId) => this.handleJoinServico(socket, servicoId));
+      socket.on('leave_servico', (servicoId) => this.handleLeaveServico(socket, servicoId));
+      socket.on('send_message', (data) => this.handleSendMessage(socket, data));
+      socket.on('update_location', (data) => this.handleUpdateLocation(socket, data));
+      socket.on('update_status', (data) => this.handleUpdateStatus(socket, data));
 
-      // Entrar na sala de um serviço
-      socket.on('join_servico', (servicoId) => {
-        this.handleJoinServico(socket, servicoId);
-      });
+      // WEBRTC
+      socket.on('call:initiate', (data) => this.handleCallInitiate(socket, data));
+      socket.on('call:accept', (data) => this.handleCallAccept(socket, data));
+      socket.on('call:reject', (data) => this.handleCallReject(socket, data));
+      socket.on('call:cancel', (data) => this.handleCallCancel(socket, data));
+      socket.on('call:ice-candidate', (data) => this.handleCallIceCandidate(socket, data));
+      socket.on('call:end', (data) => this.handleCallEnd(socket, data));
+      socket.on('call:toggle-media', (data) => this.handleCallToggleMedia(socket, data));
 
-      // Sair da sala de um serviço  
-      socket.on('leave_servico', (servicoId) => {
-        this.handleLeaveServico(socket, servicoId);
-      });
-
-      // Nova mensagem no chat
-      socket.on('send_message', (data) => {
-        this.handleSendMessage(socket, data);
-      });
-
-      // Atualização de localização
-      socket.on('update_location', (data) => {
-        this.handleUpdateLocation(socket, data);
-      });
-
-      // Atualização de status
-      socket.on('update_status', (data) => {
-        this.handleUpdateStatus(socket, data);
-      });
-
-      // === NOVOS EVENTOS WEBRTC ===
-
-      // Iniciar uma chamada
-      socket.on('call:initiate', (data) => {
-        this.handleCallInitiate(socket, data);
-      });
-
-      // Aceitar uma chamada
-      socket.on('call:accept', (data) => {
-        this.handleCallAccept(socket, data);
-      });
-
-      // Rejeitar uma chamada
-      socket.on('call:reject', (data) => {
-        this.handleCallReject(socket, data);
-      });
-
-      // Cancelar uma chamada
-      socket.on('call:cancel', (data) => {
-        this.handleCallCancel(socket, data);
-      });
-
-      // Trocar ICE Candidates (WebRTC)
-      socket.on('call:ice-candidate', (data) => {
-        this.handleCallIceCandidate(socket, data);
-      });
-
-      // Finalizar chamada em andamento
-      socket.on('call:end', (data) => {
-        this.handleCallEnd(socket, data);
-      });
-
-      // Toggle vídeo/áudio durante chamada
-      socket.on('call:toggle-media', (data) => {
-        this.handleCallToggleMedia(socket, data);
-      });
-
-      // Desconexão
-      socket.on('disconnect', () => {
-        this.handleDisconnect(socket);
-      });
+      socket.on('disconnect', () => this.handleDisconnect(socket));
     });
+  }
+
+  /**
+   * Normaliza userId: retorna Number quando possível, caso contrário mantém string
+   */
+  normalizeId(raw) {
+    if (raw === undefined || raw === null) return raw;
+    const n = Number(raw);
+    return Number.isNaN(n) ? raw : n;
   }
 
   /**
    * Usuário conectado
    */
   handleUserConnected(socket, userData) {
-    const { userId, userType, userName } = userData;
-    
-    this.connectedUsers.set(socket.id, {
-      userId,
-      userType, 
-      userName,
-      socketId: socket.id,
-      connectedAt: new Date()
-    });
+    try {
+      if (!userData) {
+        socket.emit('connection_failed', { reason: 'missing_user_data' });
+        return;
+      }
 
-    socket.join(`user_${userId}`); // Sala pessoal do usuário
-    
-    console.log('🔗 EVENTO user_connected recebido:', { userId, userType, userName, socketId: socket.id });
-        
-    // Confirmar conexão
-    socket.emit('connection_established', {
-      message: 'Conectado ao servidor de tempo real',
-      socketId: socket.id
-    });
+      // Se veio encapsulado (ex: [ { ... } ]) tiramos do array
+      if (Array.isArray(userData) && userData.length > 0) {
+        userData = userData[0];
+      }
+
+      const rawUserId = userData.userId;
+      const parsedUserId = this.normalizeId(rawUserId);
+
+      const userType = userData.userType || userData.type || null;
+      const userName = userData.userName || userData.name || null;
+
+      // Salva usando socket.id como chave
+      this.connectedUsers.set(socket.id, {
+        userId: parsedUserId,
+        userType,
+        userName,
+        socketId: socket.id,
+        connectedAt: new Date()
+      });
+
+      // Sala pessoal sempre como string (user_{id})
+      socket.join(`user_${String(parsedUserId)}`);
+
+      console.log('🔗 EVENTO user_connected recebido:', { userId: parsedUserId, userType, userName, socketId: socket.id });
+
+      // Confirmar conexão
+      socket.emit('connection_established', {
+        message: 'Conectado ao servidor de tempo real',
+        socketId: socket.id,
+        userId: parsedUserId
+      });
+
+      // opcional: emitir debug para o socket
+      // socket.emit('debug', { connectedUsers: Array.from(this.connectedUsers.values()) });
+    } catch (err) {
+      console.error('handleUserConnected erro:', err);
+    }
   }
 
   /**
    * Entrar na sala de um serviço
    */
   handleJoinServico(socket, servicoId) {
-    console.log('🎯 EVENTO join_servico recebido:', { servicoId, socketId: socket.id });
-    
-    const roomName = `servico_${servicoId}`;
-    socket.join(roomName);
-    
-    const userInfo = this.connectedUsers.get(socket.id);
-    console.log(`📱 ${userInfo?.userName} entrou na sala do serviço ${servicoId}`);
-    
-    socket.emit('joined_servico', {
-      servicoId: servicoId,
-      message: `Conectado ao serviço ${servicoId}`
-    });
+    try {
+      // aceitar "10", 10, { servicoId: 10 }, ["10"]
+      if (Array.isArray(servicoId) && servicoId.length > 0) servicoId = servicoId[0];
+      if (typeof servicoId === 'object' && servicoId !== null && servicoId.servicoId !== undefined) {
+        servicoId = servicoId.servicoId;
+      }
+
+      const roomName = `servico_${String(servicoId)}`;
+      socket.join(roomName);
+
+      const userInfo = this.connectedUsers.get(socket.id);
+      console.log('🎯 EVENTO join_servico recebido:', { servicoId, socketId: socket.id });
+      console.log(`📱 ${userInfo?.userName || 'Usuário'} entrou na sala do serviço ${servicoId}`);
+
+      socket.emit('joined_servico', {
+        servicoId,
+        message: `Conectado ao serviço ${servicoId}`
+      });
+    } catch (err) {
+      console.error('handleJoinServico erro:', err);
+    }
   }
 
   /**
    * Sair da sala de um serviço
    */
   handleLeaveServico(socket, servicoId) {
-    const roomName = `servico_${servicoId}`;
-    socket.leave(roomName);
-    
-    const userInfo = this.connectedUsers.get(socket.id);
-    console.log(`🚪 ${userInfo?.userName} saiu da sala do serviço ${servicoId}`);
+    try {
+      if (Array.isArray(servicoId) && servicoId.length > 0) servicoId = servicoId[0];
+      if (typeof servicoId === 'object' && servicoId !== null && servicoId.servicoId !== undefined) {
+        servicoId = servicoId.servicoId;
+      }
+      const roomName = `servico_${String(servicoId)}`;
+      socket.leave(roomName);
+
+      const userInfo = this.connectedUsers.get(socket.id);
+      console.log(`🚪 ${userInfo?.userName || 'Usuário'} saiu da sala do serviço ${servicoId}`);
+    } catch (err) {
+      console.error('handleLeaveServico erro:', err);
+    }
   }
 
   /**
    * Enviar mensagem no chat
    */
-  handleSendMessage(socket, data) {
-    const { servicoId, mensagem, sender } = data;
-    const userInfo = this.connectedUsers.get(socket.id);
+  handleSendMessage(socket, incoming) {
+    try {
+      // aceitar array/obj/data wrapper
+      let data = incoming;
+      if (Array.isArray(data) && data.length > 0) data = data[0];
+      if (data && data.data) data = data.data;
 
-    console.log('💬 EVENTO send_message recebido:', { 
-        servicoId, 
-        mensagem, 
-        sender, 
+      const servicoId = data?.servicoId;
+      const mensagem = data?.mensagem;
+      const sender = data?.sender;
+      const targetUserIdRaw = data?.targetUserId;
+      const targetUserId = this.normalizeId(targetUserIdRaw);
+
+      const userInfo = this.connectedUsers.get(socket.id);
+
+      console.log('💬 EVENTO send_message recebido:', {
+        servicoId,
+        mensagem,
+        sender,
         socketId: socket.id,
-        userInfo 
-    });
+        userInfo
+      });
 
-    // Broadcast para todos na sala do serviço
-    this.io.to(`servico_${servicoId}`).emit('new_message', {
-      ...data,
-      timestamp: new Date(),
-      senderInfo: userInfo
-    });
+      // Broadcast para todos na sala do serviço
+      this.io.to(`servico_${String(servicoId)}`).emit('new_message', {
+        servicoId,
+        mensagem,
+        sender,
+        timestamp: new Date(),
+        senderInfo: {
+          userId: userInfo?.userId,
+          userType: userInfo?.userType,
+          userName: userInfo?.userName
+        }
+      });
 
-    // Notificar o outro participante (se estiver em sala pessoal)
-    const targetUserType = sender === 'prestador' ? 'contratante' : 'prestador';
-    this.io.to(`user_${data.targetUserId}`).emit('message_notification', {
-      servicoId,
-      mensagem: mensagem.substring(0, 50) + '...', // Preview
-      sender: sender,
-      timestamp: new Date()
-    });
+      // Notificar o outro participante (se estiver em sala pessoal)
+      if (targetUserId !== undefined && targetUserId !== null) {
+        this.io.to(`user_${String(targetUserId)}`).emit('message_notification', {
+          servicoId,
+          mensagem: (mensagem || '').substring(0, 50) + '...',
+          sender,
+          timestamp: new Date()
+        });
+      }
+    } catch (err) {
+      console.error('handleSendMessage erro:', err);
+    }
   }
 
   /**
    * Atualização de localização em tempo real
    */
-  handleUpdateLocation(socket, data) {
-    const { servicoId, latitude, longitude, prestadorId } = data;
-    const userInfo = this.connectedUsers.get(socket.id);
+  handleUpdateLocation(socket, incoming) {
+    try {
+      let data = incoming;
+      if (Array.isArray(data) && data.length > 0) data = data[0];
+      if (data && data.data) data = data.data;
 
-    console.log(`📍 Atualização de localização - Serviço ${servicoId}: ${latitude}, ${longitude}`);
+      const servicoId = data?.servicoId;
+      const latitude = Number(data?.latitude);
+      const longitude = Number(data?.longitude);
+      const userId = this.normalizeId(data?.prestadorId ?? data?.userId ?? data?.id);
 
-    // Enviar para o contratante (se estiver na sala)
-    this.io.to(`servico_${servicoId}`).emit('location_updated', {
-      servicoId,
-      latitude,
-      longitude,
-      prestadorId,
-      prestadorName: userInfo?.userName,
-      timestamp: new Date()
-    });
+      const userInfo = this.connectedUsers.get(socket.id);
+
+      console.log(`📍 Atualização de localização - Serviço ${servicoId}: ${latitude}, ${longitude}`);
+
+      this.io.to(`servico_${String(servicoId)}`).emit('location_updated', {
+        servicoId,
+        latitude,
+        longitude,
+        userId,
+        userName: userInfo?.userName,
+        timestamp: new Date()
+      });
+    } catch (err) {
+      console.error('handleUpdateLocation erro:', err);
+    }
   }
 
   /**
    * Atualização de status do serviço
    */
-  handleUpdateStatus(socket, data) {
-    const { servicoId, status, observacao } = data;
+  handleUpdateStatus(socket, incoming) {
+    try {
+      let data = incoming;
+      if (Array.isArray(data) && data.length > 0) data = data[0];
+      if (data && data.data) data = data.data;
 
-    console.log(`🔄 Atualização de status - Serviço ${servicoId}: ${status}`);
+      const servicoId = data?.servicoId;
+      const status = data?.status;
+      const observacao = data?.observacao;
 
-    // Notificar todos na sala do serviço
-    this.io.to(`servico_${servicoId}`).emit('status_updated', {
-      servicoId,
-      status,
-      observacao,
-      timestamp: new Date()
-    });
+      console.log(`🔄 Atualização de status - Serviço ${servicoId}: ${status}`);
+
+      this.io.to(`servico_${String(servicoId)}`).emit('status_updated', {
+        servicoId,
+        status,
+        observacao,
+        timestamp: new Date()
+      });
+    } catch (err) {
+      console.error('handleUpdateStatus erro:', err);
+    }
   }
 
   // =========================================================================
   // === HANDLERS WEBRTC - NOVOS MÉTODOS ===
   // =========================================================================
 
- /**
- * ✅ DEBUG: Método para verificar conexões
- */
-debugConnections() {
-  console.log('=== 🔍 DEBUG CONEXÕES ATIVAS ===');
-  const users = Array.from(this.connectedUsers.values());
-  
-  if (users.length === 0) {
-    console.log('❌ NENHUM usuário conectado!');
-    return;
-  }
-  
-  users.forEach(user => {
-    console.log(`👤 UserID: ${user.userId}, Socket: ${user.socketId}, Nome: ${user.userName}`);
-  });
-  
-  console.log('================================');
-}
-
-/**
- * ✅ Iniciar uma chamada de voz/vídeo - COM DEBUG
- */
-handleCallInitiate(socket, data) {
-  console.log('🔍 DEBUG handleCallInitiate - data recebida:', data);
-  
-  // ✅ CORREÇÃO: Extrair o objeto do array se necessário
-  if (Array.isArray(data) && data.length > 0) {
-    data = data[0];
-  }
-
-  const { servicoId, callerId, callerName, targetUserId, callType = 'video' } = data;
-  const callerInfo = this.connectedUsers.get(socket.id);
-
-  console.log(`📞 Chamada ${callType} iniciada - Serviço: ${servicoId}, De: ${callerId}, Para: ${targetUserId}`);
-
-  // ✅ DEBUG: Ver conexões antes de continuar
-  this.debugConnections();
-
-  // Verificar se o target está online
-  const targetOnline = this.isUserOnline(targetUserId);
-  console.log(`🎯 Target ${targetUserId} online?`, targetOnline);
-  
-  if (!targetOnline) {
-    console.log(`❌ Target ${targetUserId} OFFLINE - Enviando call:failed`);
-    socket.emit('call:failed', {
-      reason: 'user_offline',
-      message: 'Usuário destino está offline'
+  /**
+   * ✅ DEBUG: Método para verificar conexões
+   */
+  debugConnections() {
+    console.log('=== 🔍 DEBUG CONEXÕES ATIVAS ===');
+    const users = Array.from(this.connectedUsers.values());
+    if (users.length === 0) {
+      console.log('❌ NENHUM usuário conectado!');
+      return;
+    }
+    users.forEach(user => {
+      console.log(`👤 UserID: ${user.userId}, Socket: ${user.socketId}, Nome: ${user.userName}`);
     });
-    return;
+    console.log('================================');
   }
 
-  const callId = `${servicoId}_${callerId}_${Date.now()}`;
-  
-  // Registrar chamada como pendente
-  this.activeCalls.set(callId, {
-    callId,
-    servicoId,
-    callerId,
-    targetUserId,
-    callType,
-    status: 'ringing',
-    startedAt: new Date()
-  });
+  /**
+   * ✅ Iniciar uma chamada de voz/vídeo
+   */
+  handleCallInitiate(socket, incoming) {
+    try {
+      let data = incoming;
+      if (Array.isArray(data) && data.length > 0) data = data[0];
+      if (data && data.data) data = data.data;
 
-  // Notificar o usuário destino
-  console.log(`📤 Enviando call:incoming para user_${targetUserId}`);
-  this.io.to(`user_${targetUserId}`).emit('call:incoming', {
-    servicoId,
-    callerId,
-    callerName: callerInfo?.userName || callerName,
-    callType,
-    callId,
-    timestamp: new Date()
-  });
+      // Normalizar IDs
+      const servicoId = data?.servicoId;
+      const callerId = this.normalizeId(data?.callerId ?? data?.userId ?? data?.from);
+      const callerName = data?.callerName;
+      const targetUserId = this.normalizeId(data?.targetUserId ?? data?.targetId ?? data?.to);
+      const callType = data?.callType || 'video';
 
-  // Confirmar para quem iniciou
-  console.log(`📤 Enviando call:initiated para socket ${socket.id}`);
-  socket.emit('call:initiated', {
-    callId,
-    targetUserId,
-    targetOnline: true
-  });
+      const callerInfo = this.connectedUsers.get(socket.id);
 
-  console.log(`✅ Notificações enviadas - Call ID: ${callId}`);
-}
+      console.log('🔍 DEBUG handleCallInitiate - data recebida:', { servicoId, callerId, callerName, targetUserId, callType });
+      this.debugConnections();
 
-/**
- * ✅ Aceitar uma chamada - VERSÃO CORRIGIDA
- */
-handleCallAccept(socket, data) {
-  console.log('🔍 DEBUG handleCallAccept - data recebida:', data);
-  
-  // ✅ CORREÇÃO: Extrair do array se necessário
-  if (Array.isArray(data) && data.length > 0) {
-    data = data[0];
-    console.log('🔧 Data extraída do array:', data);
+      // Verificar se o target está online
+      const targetOnline = this.isUserOnline(targetUserId);
+      console.log(`🎯 Target ${targetUserId} online?`, targetOnline);
+
+      if (!targetOnline) {
+        console.log(`❌ Target ${targetUserId} OFFLINE - Enviando call:failed`);
+        socket.emit('call:failed', {
+          reason: 'user_offline',
+          message: 'Usuário destino está offline'
+        });
+        return;
+      }
+
+      // Gerar callId unico
+      const callId = `${servicoId}_${callerId}_${Date.now()}`;
+
+      // Registrar chamada
+      this.activeCalls.set(callId, {
+        callId,
+        servicoId,
+        callerId,
+        targetUserId,
+        callType,
+        status: 'ringing',
+        startedAt: new Date()
+      });
+
+      // Notificar o usuário destino (todos sockets dele)
+      console.log(`📤 Enviando call:incoming para user_${String(targetUserId)}`);
+      this.io.to(`user_${String(targetUserId)}`).emit('call:incoming', {
+        servicoId,
+        callerId,
+        callerName: callerInfo?.userName || callerName,
+        callType,
+        callId,
+        timestamp: new Date()
+      });
+
+      // Confirmar para quem iniciou
+      console.log(`📤 Enviando call:initiated para socket ${socket.id}`);
+      socket.emit('call:initiated', {
+        callId,
+        targetUserId,
+        targetOnline: true
+      });
+
+      console.log(`✅ Notificações enviadas - Call ID: ${callId}`);
+    } catch (err) {
+      console.error('handleCallInitiate erro:', err);
+      socket.emit('call:failed', { reason: 'server_error', message: String(err) });
+    }
   }
 
-  const { servicoId, callId, callerId, answer } = data;
-  const answererInfo = this.connectedUsers.get(socket.id);
+  /**
+   * ✅ Aceitar uma chamada
+   */
+  handleCallAccept(socket, incoming) {
+    try {
+      let data = incoming;
+      if (Array.isArray(data) && data.length > 0) data = data[0];
+      if (data && data.data) data = data.data;
 
-  console.log(`✅ Chamada aceita - Call ID: ${callId}, Por: ${answererInfo?.userName || 'N/A'}`);
-  console.log('🔍 AnswererInfo:', answererInfo);
+      const servicoId = data?.servicoId;
+      const callId = data?.callId;
+      const callerId = this.normalizeId(data?.callerId);
+      const answer = data?.answer; // SDP answer
+      const answererInfo = this.connectedUsers.get(socket.id);
 
-  // Atualizar status da chamada
-  const call = this.activeCalls.get(callId);
-  if (call) {
-    call.status = 'active';
-    call.answeredAt = new Date();
-    call.answererId = answererInfo?.userId;
+      console.log('🔍 DEBUG handleCallAccept - data recebida:', { servicoId, callId, callerId });
+      console.log(`✅ Chamada aceita - Call ID: ${callId}, Por: ${answererInfo?.userName || 'N/A'}`);
+
+      // Atualizar status
+      const call = this.activeCalls.get(callId);
+      if (call) {
+        call.status = 'active';
+        call.answeredAt = new Date();
+        call.answererId = answererInfo?.userId;
+      }
+
+      // Notificar o caller (todos sockets dele)
+      console.log(`🎯 Notificando caller ${callerId} com call:accepted`);
+      this.io.to(`user_${String(callerId)}`).emit('call:accepted', {
+        servicoId,
+        callId,
+        answererId: answererInfo?.userId,
+        answererName: answererInfo?.userName || 'Usuário',
+        answer,
+        timestamp: new Date()
+      });
+
+      // Notificar sala do serviço
+      this.io.to(`servico_${String(servicoId)}`).emit('call:started', {
+        servicoId,
+        callId,
+        participants: [call?.callerId, call?.answererId],
+        timestamp: new Date()
+      });
+
+      console.log(`📤 Notificações enviadas - Call accepted para caller ${callerId}`);
+    } catch (err) {
+      console.error('handleCallAccept erro:', err);
+    }
   }
-
-  // ✅ DEBUG: Verificar se caller existe
-  const callerSockets = this.getUserSockets(callerId);
-  console.log(`🎯 Sockets do caller ${callerId}:`, callerSockets);
-
-  // Notificar o caller que a chamada foi aceita
-  this.io.to(`user_${callerId}`).emit('call:accepted', {
-    servicoId,
-    callId,
-    answererId: answererInfo?.userId,
-    answererName: answererInfo?.userName || 'Usuário',
-    answer, // SDP answer do WebRTC
-    timestamp: new Date()
-  });
-
-  // Notificar todos na sala do serviço que começou uma chamada
-  this.io.to(`servico_${servicoId}`).emit('call:started', {
-    servicoId,
-    callId,
-    participants: [callerId, answererInfo?.userId],
-    timestamp: new Date()
-  });
-
-  console.log(`📤 Notificações enviadas - Call accepted para caller ${callerId}`);
-}
 
   /**
    * ✅ Rejeitar uma chamada
    */
-  handleCallReject(socket, data) {
-    const { servicoId, callId, callerId, reason = 'user_busy' } = data;
-    const rejecterInfo = this.connectedUsers.get(socket.id);
+  handleCallReject(socket, incoming) {
+    try {
+      let data = incoming;
+      if (Array.isArray(data) && data.length > 0) data = data[0];
+      if (data && data.data) data = data.data;
 
-    console.log(`❌ Chamada rejeitada - Call ID: ${callId}, Por: ${rejecterInfo?.userName}`);
+      const servicoId = data?.servicoId;
+      const callId = data?.callId;
+      const callerId = this.normalizeId(data?.callerId);
+      const reason = data?.reason || 'user_busy';
+      const rejecter = this.connectedUsers.get(socket.id);
 
-    // Remover chamada do registro
-    this.activeCalls.delete(callId);
+      console.log(`❌ Chamada rejeitada - Call ID: ${callId}, Por: ${rejecter?.userName}`);
 
-    this.io.to(`user_${callerId}`).emit('call:rejected', {
-      servicoId,
-      callId,
-      reason,
-      rejectedBy: rejecterInfo?.userId,
-      rejectedByName: rejecterInfo?.userName,
-      timestamp: new Date()
-    });
+      this.activeCalls.delete(callId);
+
+      this.io.to(`user_${String(callerId)}`).emit('call:rejected', {
+        servicoId,
+        callId,
+        reason,
+        rejectedBy: rejecter?.userId,
+        rejectedByName: rejecter?.userName,
+        timestamp: new Date()
+      });
+    } catch (err) {
+      console.error('handleCallReject erro:', err);
+    }
   }
 
   /**
    * ✅ Cancelar uma chamada (quem iniciou desiste antes de ser atendida)
    */
-  handleCallCancel(socket, data) {
-    const { servicoId, callId, targetUserId } = data;
+  handleCallCancel(socket, incoming) {
+    try {
+      let data = incoming;
+      if (Array.isArray(data) && data.length > 0) data = data[0];
+      if (data && data.data) data = data.data;
 
-    console.log(`📵 Chamada cancelada - Call ID: ${callId}`);
+      const servicoId = data?.servicoId;
+      const callId = data?.callId;
+      const targetUserId = this.normalizeId(data?.targetUserId);
 
-    // Remover chamada do registro
-    this.activeCalls.delete(callId);
+      console.log(`📵 Chamada cancelada - Call ID: ${callId}`);
 
-    this.io.to(`user_${targetUserId}`).emit('call:cancelled', {
-      servicoId,
-      callId,
-      timestamp: new Date()
-    });
+      this.activeCalls.delete(callId);
+
+      if (targetUserId !== undefined && targetUserId !== null) {
+        this.io.to(`user_${String(targetUserId)}`).emit('call:cancelled', {
+          servicoId,
+          callId,
+          timestamp: new Date()
+        });
+      }
+    } catch (err) {
+      console.error('handleCallCancel erro:', err);
+    }
   }
 
   /**
    * ✅ Trocar ICE Candidates (WebRTC)
    */
-  handleCallIceCandidate(socket, data) {
-    const { servicoId, targetUserId, candidate, callId } = data;
+  handleCallIceCandidate(socket, incoming) {
+    try {
+      let data = incoming;
+      if (Array.isArray(data) && data.length > 0) data = data[0];
+      if (data && data.data) data = data.data;
 
-    // Encaminhar o ICE candidate para o outro participante
-    this.io.to(`user_${targetUserId}`).emit('call:ice-candidate', {
-      servicoId,
-      candidate,
-      callId,
-      timestamp: new Date()
-    });
+      const servicoId = data?.servicoId;
+      const targetUserId = this.normalizeId(data?.targetUserId);
+      const candidate = data?.candidate;
+      const callId = data?.callId;
+
+      if (targetUserId === undefined || targetUserId === null) return;
+
+      // Encaminhar o ICE candidate para o outro participante
+      this.io.to(`user_${String(targetUserId)}`).emit('call:ice-candidate', {
+        servicoId,
+        candidate,
+        callId,
+        timestamp: new Date()
+      });
+    } catch (err) {
+      console.error('handleCallIceCandidate erro:', err);
+    }
   }
 
   /**
    * ✅ Finalizar chamada em andamento
    */
-  handleCallEnd(socket, data) {
-    const { servicoId, callId, targetUserId, reason = 'ended' } = data;
-    const enderInfo = this.connectedUsers.get(socket.id);
+  handleCallEnd(socket, incoming) {
+    try {
+      let data = incoming;
+      if (Array.isArray(data) && data.length > 0) data = data[0];
+      if (data && data.data) data = data.data;
 
-    console.log(`🔚 Chamada finalizada - Call ID: ${callId}, Por: ${enderInfo?.userName}`);
+      const servicoId = data?.servicoId;
+      const callId = data?.callId;
+      const targetUserId = this.normalizeId(data?.targetUserId);
+      const reason = data?.reason || 'ended';
 
-    // Calcular duração se a chamada estava ativa
-    const call = this.activeCalls.get(callId);
-    let duration = 0;
-    if (call && call.answeredAt) {
-      duration = Math.floor((new Date() - call.answeredAt) / 1000); // segundos
+      const enderInfo = this.connectedUsers.get(socket.id);
+      console.log(`🔚 Chamada finalizada - Call ID: ${callId}, Por: ${enderInfo?.userName}`);
+
+      const call = this.activeCalls.get(callId);
+      let duration = 0;
+      if (call && call.answeredAt) {
+        duration = Math.floor((new Date() - call.answeredAt) / 1000); // segundos
+      }
+      this.activeCalls.delete(callId);
+
+      if (targetUserId !== undefined && targetUserId !== null) {
+        this.io.to(`user_${String(targetUserId)}`).emit('call:ended', {
+          servicoId,
+          callId,
+          endedBy: enderInfo?.userId,
+          reason,
+          duration,
+          timestamp: new Date()
+        });
+      }
+
+      this.io.to(`servico_${String(servicoId)}`).emit('call:finished', {
+        servicoId,
+        callId,
+        duration,
+        timestamp: new Date()
+      });
+    } catch (err) {
+      console.error('handleCallEnd erro:', err);
     }
-
-    // Remover chamada do registro
-    this.activeCalls.delete(callId);
-
-    // Notificar o outro participante
-    this.io.to(`user_${targetUserId}`).emit('call:ended', {
-      servicoId,
-      callId,
-      endedBy: enderInfo?.userId,
-      reason,
-      duration,
-      timestamp: new Date()
-    });
-
-    // Notificar a sala do serviço que a chamada terminou
-    this.io.to(`servico_${servicoId}`).emit('call:finished', {
-      servicoId,
-      callId,
-      duration,
-      timestamp: new Date()
-    });
   }
 
   /**
    * ✅ Toggle vídeo/áudio durante chamada
    */
-  handleCallToggleMedia(socket, data) {
-    const { servicoId, targetUserId, mediaType, enabled, callId } = data;
+  handleCallToggleMedia(socket, incoming) {
+    try {
+      let data = incoming;
+      if (Array.isArray(data) && data.length > 0) data = data[0];
+      if (data && data.data) data = data.data;
 
-    console.log(`🎚️ Toggle ${mediaType} - Enabled: ${enabled}, Call ID: ${callId}`);
+      const servicoId = data?.servicoId;
+      const targetUserId = this.normalizeId(data?.targetUserId);
+      const mediaType = data?.mediaType; // 'video' ou 'audio'
+      const enabled = data?.enabled;
+      const callId = data?.callId;
 
-    this.io.to(`user_${targetUserId}`).emit('call:media-toggled', {
-      servicoId,
-      callId,
-      mediaType, // 'video' ou 'audio'
-      enabled,
-      timestamp: new Date()
-    });
+      console.log(`🎚️ Toggle ${mediaType} - Enabled: ${enabled}, Call ID: ${callId}`);
+
+      if (targetUserId !== undefined && targetUserId !== null) {
+        this.io.to(`user_${String(targetUserId)}`).emit('call:media-toggled', {
+          servicoId,
+          callId,
+          mediaType,
+          enabled,
+          timestamp: new Date()
+        });
+      }
+    } catch (err) {
+      console.error('handleCallToggleMedia erro:', err);
+    }
   }
 
   /**
    * Usuário desconectado
    */
   handleDisconnect(socket) {
-    const userInfo = this.connectedUsers.get(socket.id);
-    
-    if (userInfo) {
-      console.log(`👋 Usuário desconectado: ${userInfo.userName} (${userInfo.userId})`);
-      
-      // Finalizar chamadas ativas do usuário
-      this.cleanupUserCalls(userInfo.userId);
-      
-      this.connectedUsers.delete(socket.id);
-    } else {
-      console.log(`👋 Socket desconectado: ${socket.id}`);
+    try {
+      const userInfo = this.connectedUsers.get(socket.id);
+
+      if (userInfo) {
+        console.log(`👋 Usuário desconectado: ${userInfo.userName} (${userInfo.userId})`);
+        // Finalizar chamadas ativas do usuário
+        this.cleanupUserCalls(userInfo.userId);
+        this.connectedUsers.delete(socket.id);
+      } else {
+        console.log(`👋 Socket desconectado: ${socket.id}`);
+      }
+    } catch (err) {
+      console.error('handleDisconnect erro:', err);
     }
   }
 
   /**
    * Limpar chamadas de um usuário ao desconectar
    */
-  cleanupUserCalls(userId) {
-    for (const [callId, call] of this.activeCalls.entries()) {
-      if (call.callerId === userId || call.answererId === userId) {
-        console.log(`🧹 Limpando chamada ${callId} do usuário desconectado ${userId}`);
-        
-        // Notificar o outro participante
-        const targetUserId = call.callerId === userId ? call.targetUserId : call.callerId;
-        this.io.to(`user_${targetUserId}`).emit('call:ended', {
-          servicoId: call.servicoId,
-          callId,
-          reason: 'user_disconnected',
-          timestamp: new Date()
-        });
-        
-        this.activeCalls.delete(callId);
+  cleanupUserCalls(userIdRaw) {
+    try {
+      const userId = this.normalizeId(userIdRaw);
+      for (const [callId, call] of this.activeCalls.entries()) {
+        if (Number(call.callerId) === Number(userId) || Number(call.answererId) === Number(userId)) {
+          console.log(`🧹 Limpando chamada ${callId} do usuário desconectado ${userId}`);
+
+          const targetUserId = Number(call.callerId) === Number(userId) ? call.targetUserId : call.callerId;
+          if (targetUserId !== undefined && targetUserId !== null) {
+            this.io.to(`user_${String(targetUserId)}`).emit('call:ended', {
+              servicoId: call.servicoId,
+              callId,
+              reason: 'user_disconnected',
+              timestamp: new Date()
+            });
+          }
+          this.activeCalls.delete(callId);
+        }
       }
+    } catch (err) {
+      console.error('cleanupUserCalls erro:', err);
     }
   }
 
@@ -542,7 +645,7 @@ handleCallAccept(socket, data) {
    * Emitir nova mensagem (usado pelo controller de chat)
    */
   emitNewMessage(servicoId, mensagemData) {
-    this.io.to(`servico_${servicoId}`).emit('new_message', {
+    this.io.to(`servico_${String(servicoId)}`).emit('new_message', {
       ...mensagemData,
       isFromServer: true,
       timestamp: new Date()
@@ -553,7 +656,7 @@ handleCallAccept(socket, data) {
    * Emitir atualização de status (usado pelo controller de rastreamento)
    */
   emitStatusUpdate(servicoId, statusData) {
-    this.io.to(`servico_${servicoId}`).emit('status_updated', {
+    this.io.to(`servico_${String(servicoId)}`).emit('status_updated', {
       ...statusData,
       isFromServer: true,
       timestamp: new Date()
@@ -564,7 +667,7 @@ handleCallAccept(socket, data) {
    * Emitir atualização de localização
    */
   emitLocationUpdate(servicoId, locationData) {
-    this.io.to(`servico_${servicoId}`).emit('location_updated', {
+    this.io.to(`servico_${String(servicoId)}`).emit('location_updated', {
       ...locationData,
       isFromServer: true,
       timestamp: new Date()
@@ -574,53 +677,50 @@ handleCallAccept(socket, data) {
   /**
    * Verificar se usuário está online
    */
-  isUserOnline(userId) {
+  isUserOnline(userIdRaw) {
+    const userId = this.normalizeId(userIdRaw);
     return Array.from(this.connectedUsers.values()).some(
-      user => user.userId === userId
+      user => this.normalizeId(user.userId) === this.normalizeId(userId)
     );
   }
 
   /**
    * Obter sockets de um usuário
    */
-  getUserSockets(userId) {
+  getUserSockets(userIdRaw) {
+    const userId = this.normalizeId(userIdRaw);
     return Array.from(this.connectedUsers.entries())
-      .filter(([_, user]) => user.userId === userId)
+      .filter(([_, user]) => this.normalizeId(user.userId) === this.normalizeId(userId))
       .map(([socketId, _]) => socketId);
   }
 
   // =========================================================================
-  // === NOVOS MÉTODOS PÚBLICOS WEBRTC ===
+  // === MÉTODOS PÚBLICOS WEBRTC ===
+  // (mesmos comportamentos, expostos para uso por controllers se necessário)
   // =========================================================================
 
-  /**
-   * Verificar se usuário está em chamada ativa
-   */
-  isUserInCall(userId) {
-    return Array.from(this.activeCalls.values()).some(call => 
-      (call.callerId === userId || call.answererId === userId) && call.status === 'active'
+  isUserInCall(userIdRaw) {
+    const userId = this.normalizeId(userIdRaw);
+    return Array.from(this.activeCalls.values()).some(call =>
+      (this.normalizeId(call.callerId) === userId || this.normalizeId(call.answererId) === userId) && call.status === 'active'
     );
   }
 
-  /**
-   * Forçar término de chamada (útil para admin/timeout)
-   */
   forceEndCall(servicoId, callId, reason = 'admin_force_end') {
     const call = this.activeCalls.get(callId);
     if (call) {
       console.log(`🛑 Forçando término da chamada ${callId}, Razão: ${reason}`);
-      
-      // Notificar ambos participantes
-      this.io.to(`user_${call.callerId}`).emit('call:ended', {
+
+      this.io.to(`user_${String(call.callerId)}`).emit('call:ended', {
         servicoId,
         callId,
         reason,
         forced: true,
         timestamp: new Date()
       });
-      
+
       if (call.answererId) {
-        this.io.to(`user_${call.answererId}`).emit('call:ended', {
+        this.io.to(`user_${String(call.answererId)}`).emit('call:ended', {
           servicoId,
           callId,
           reason,
@@ -628,30 +728,26 @@ handleCallAccept(socket, data) {
           timestamp: new Date()
         });
       }
-      
-      // Notificar sala do serviço
-      this.io.to(`servico_${servicoId}`).emit('call:finished', {
+
+      this.io.to(`servico_${String(servicoId)}`).emit('call:finished', {
         servicoId,
         callId,
         reason,
         forced: true,
         timestamp: new Date()
       });
-      
+
       this.activeCalls.delete(callId);
       return true;
     }
     return false;
   }
 
-  /**
-   * Obter estatísticas de chamadas (para dashboard)
-   */
   getCallStats() {
     const calls = Array.from(this.activeCalls.values());
     const activeCalls = calls.filter(call => call.status === 'active');
     const ringingCalls = calls.filter(call => call.status === 'ringing');
-    
+
     return {
       activeCalls: activeCalls.length,
       ringingCalls: ringingCalls.length,
@@ -661,16 +757,10 @@ handleCallAccept(socket, data) {
     };
   }
 
-  /**
-   * Obter informações de uma chamada específica
-   */
   getCallInfo(callId) {
     return this.activeCalls.get(callId);
   }
 
-  /**
-   * Listar todas as chamadas ativas (para debug/admin)
-   */
   getAllActiveCalls() {
     return Array.from(this.activeCalls.values());
   }
