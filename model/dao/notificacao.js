@@ -1,5 +1,4 @@
-const { PrismaClient } = require('../../prisma/generated/client')
-const prisma = new PrismaClient()
+import prisma from "../../prisma.js";
 
 /**
  * criar notificação

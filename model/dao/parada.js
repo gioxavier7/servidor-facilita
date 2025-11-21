@@ -3,8 +3,7 @@
  * dev: Giovanna Xavier
  * data: 23/10/2025
  */
-const { PrismaClient } = require('../../prisma/generated/client')
-const prisma = new PrismaClient()
+import prisma from "../../prisma.js";
 
 const insertParadas = async (paradas) => {
   try {

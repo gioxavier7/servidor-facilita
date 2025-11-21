@@ -5,8 +5,8 @@
  * versão: 1.1
  */
 
-const { PrismaClient, statusServico } = require('../../prisma/generated/client')
-const prisma = new PrismaClient()
+const {statusServico } = require('../../prisma/generated/client')
+import prisma from "../../prisma.js";
 
 /**
  * cadastra um novo serviço

@@ -5,8 +5,7 @@
  * versão: 2.0 - Atualizado para novo schema
  */
 
-const { PrismaClient } = require('../../prisma/generated/client')
-const prisma = new PrismaClient()
+import prisma from "../../prisma.js";
 
 /**
  * Cadastra um novo documento

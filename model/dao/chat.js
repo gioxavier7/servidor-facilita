@@ -5,8 +5,7 @@
  * versão: 1.0
  */
 
-const { PrismaClient } = require('../../prisma/generated/client')
-const prisma = new PrismaClient()
+import prisma from "../../prisma.js";
 
 /**
  * envia uma mensagem no chat do serviço

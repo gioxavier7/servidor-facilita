@@ -1,5 +1,4 @@
-const { PrismaClient } = require('../../prisma/generated/client')
-const prisma = new PrismaClient();
+import prisma from "../../prisma.js";
 
 // Inserir transação
 const insertTransacao = async function({ id_carteira, tipo, valor, descricao }) {
