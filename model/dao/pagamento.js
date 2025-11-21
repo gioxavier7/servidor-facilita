@@ -1,4 +1,4 @@
-import prisma from "../../prisma.js";
+const prisma = require("../../prisma.js");
 
 const insertPagamento = async (pagamento) => {
   try {

@@ -5,7 +5,7 @@
  * versão: 1.0
  */
 
-import prisma from "../../prisma.js";
+const prisma = require("../../prisma.js");
 
 /**
  * envia uma mensagem no chat do serviço

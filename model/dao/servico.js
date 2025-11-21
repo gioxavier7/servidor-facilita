@@ -6,7 +6,7 @@
  */
 
 const {statusServico } = require('../../prisma/generated/client')
-import prisma from "../../prisma.js";
+const prisma = require("../../prisma.js");
 
 /**
  * cadastra um novo serviço

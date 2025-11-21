@@ -5,7 +5,7 @@
  * versão: 2.0 - Atualizado para novo schema
  */
 
-import prisma from "../../prisma.js";
+const prisma = require("../../prisma.js");
 
 /**
  * Cadastra um novo documento

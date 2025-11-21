@@ -4,8 +4,7 @@
  * Dev: Giovanna
  * Versão: 2.0 - Atualizado para novo schema
  */
-
-import prisma from "../../prisma.js";
+const prisma = require("../../prisma.js");
 
 // ================= CRIAR PRESTADOR BÁSICO =================
 const insertPrestadorBasico = async (prestador) => {

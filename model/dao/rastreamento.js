@@ -6,7 +6,7 @@
  */
 
 //const { PrismaClient, StatusRastreamento } = require('../../prisma/generated/client')
-import prisma from "../../prisma.js";
+const prisma = require("../../prisma.js");
 
 /**
  * cria um novo registro de rastreamento

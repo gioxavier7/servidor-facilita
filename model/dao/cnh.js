@@ -5,7 +5,7 @@
  * Versão: 1.0
  */
 
-import prisma from "../../prisma.js";
+const prisma = require("../../prisma.js");
 
 // ================= INSERIR CNH =================
 const insertCNH = async (cnh) => {
