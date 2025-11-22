@@ -116,7 +116,7 @@ app.use('/v1/facilita/chat', chatRoutes)
 app.use('/v1/facilita/recarga', recargaRoutes)
 
 // ========== ROTA DE FALLBACK PARA 404 ==========
-app.use('*', (req, res) => {
+app.use((req, res) => {
   res.status(404).json({
     error: 'Rota não encontrada',
     message: `A rota ${req.originalUrl} não existe nesta API`,
