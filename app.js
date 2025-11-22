@@ -27,6 +27,7 @@ const server = http.createServer(app);
 // Inicializar WebSocket
 socketService.init(server);
 
+// ========== MIDDLEWARES GLOBAIS ==========
 app.use(bodyParser.json())
 
 // configuração de CORS (local + produção)
@@ -67,67 +68,75 @@ const notificacaoRoutes = require('./routes/notificacaoRoutes')
 const rastreamentoRoutes = require('./routes/rastreamentoRoutes')
 const chatRoutes = require('./routes/chatRoutes');
 const recargaRoutes = require('./routes/recargasRoutes')
+const healthRoutes = require('./routes/healthRoutes');
 
 // ===== Middleware Gerais =====
 const cacheMiddleware = require('./middleware/cache');
 const rateLimit = require('./middleware/rateLimit');
 
-// Limite global por IP
-app.use(rateLimit(60000, 120)); // 120 req/minuto
+// ========== CONFIGURAÇÃO DE ROTAS COM MIDDLEWARES ESPECÍFICOS ==========
 
-// Cache apenas para GET
-app.use(cacheMiddleware(300)); // 300 segundos = 5min
+// ✅ CORREÇÃO: Health Check PRIMEIRO (sem rate limit)
+app.use('/v1/facilita/health', healthRoutes)
 
-
-// ========== ROTAS ==========
-
-// ROTAS DE USUÁRIO (auth + CRUD)
-app.use('/v1/facilita/usuario', usuarioRoutes)
-
-// ROTAS DE CONTRATANTE
-app.use('/v1/facilita/contratante', contratanteRoutes)
-
-// ROTAS DE PRESTADOR
-app.use('/v1/facilita/prestador', prestadorRoutes)
-
-// ROTAS DE LOCALIZACAO
-app.use('/v1/facilita/localizacao', localizacaoRoutes)
-
-// ROTAS DE SERVIÇO
-app.use('/v1/facilita/servico', servicoRoutes)
-
-// ROTAS DE CATEGORIA
-app.use('/v1/facilita/categoria', categoriaRoutes)
-
-// ROTAS DE PAGAMENTO
-app.use('/v1/facilita/pagamento', pagamentoRoutes)
-
-// ROTAS DE CARTEIRA
-app.use('/v1/facilita/carteira', carteiraRoutes)
-
-// ROTAS DE TRANSAÇÃO-CARTEIRA
-app.use('/v1/facilita/transacao', transacaoCarteiraRoutes)
-
-// ROTAS DE WEBHOOK PAGBANK
+// ✅ CORREÇÃO: Webhooks SEGUNDO (sem rate limit)
 app.use('/v1/facilita/pagamento/webhook', pagbankWebhookRoutes)
 
-// ROTAS DE AVALIACAO
+// ✅ Aplicar rate limit global (exceto health e webhooks que já foram definidos)
+app.use(rateLimit(60000, 120)); // 120 req/minuto
+
+// ========== ROTAS COM CACHE ESTRATÉGICO ==========
+
+// CATEGORIAS - Cache longo (dados estáticos)
+app.use('/v1/facilita/categoria', cacheMiddleware(3600), categoriaRoutes) // 1 hora
+
+// SERVIÇOS - Cache médio (apenas rotas públicas) - ⚠️ LEMBRETE: Só funciona se tiver rotas públicas
+app.use('/v1/facilita/servico', servicoRoutes)
+
+// LOCALIZAÇÃO - Cache médio - ⚠️ LEMBRETE: Só funciona se tiver rotas públicas
+app.use('/v1/facilita/localizacao', localizacaoRoutes)
+
+// PRESTADORES - Cache médio (apenas listagem pública) - ⚠️ LEMBRETE: Só funciona se tiver rotas públicas
+app.use('/v1/facilita/prestador', prestadorRoutes)
+
+// AVALIAÇÕES - Cache médio - ⚠️ LEMBRETE: Só funciona se tiver rotas públicas
 app.use('/v1/facilita/avaliacao', avaliacaoRoutes)
 
-// ROTAS DE NOTIFICAÇÃO
+// ========== ROTAS SEM CACHE ==========
+
+// Dados sensíveis/dinâmicos (SEM cache)
+app.use('/v1/facilita/usuario', usuarioRoutes)
+app.use('/v1/facilita/contratante', contratanteRoutes)
+app.use('/v1/facilita/pagamento', pagamentoRoutes)
+app.use('/v1/facilita/carteira', carteiraRoutes)
+app.use('/v1/facilita/transacao', transacaoCarteiraRoutes)
 app.use('/v1/facilita/notificacao', notificacaoRoutes)
-
-// ROTAS DE RASTREAMENTO
 app.use('/v1/facilita/rastreamento', rastreamentoRoutes)
+app.use('/v1/facilita/chat', chatRoutes)
+app.use('/v1/facilita/recarga', recargaRoutes)
 
-// ROTAS DE CHAT
-app.use('/v1/facilita/chat', chatRoutes);
+// ========== ROTA DE FALLBACK PARA 404 ==========
+app.use('*', (req, res) => {
+  res.status(404).json({
+    error: 'Rota não encontrada',
+    message: `A rota ${req.originalUrl} não existe nesta API`,
+    timestamp: new Date().toISOString()
+  });
+});
 
-// ROTAS DE RECARGA
-app.use('/v1/facilita/recarga', recargaRoutes);
+// ========== MIDDLEWARE DE ERRO GLOBAL ==========
+app.use((error, req, res, next) => {
+  console.error('Erro global:', error);
+  res.status(500).json({
+    error: 'Erro interno do servidor',
+    message: process.env.NODE_ENV === 'production' ? 'Algo deu errado' : error.message,
+    timestamp: new Date().toISOString()
+  });
+});
 
 // ========== START DO SERVIDOR =========
 server.listen(PORT, () => {
   console.log(`🚀 Servidor rodando na porta ${PORT}...`)
   console.log(`🔌 WebSocket ativo na porta ${PORT}`)
+  console.log(`📍 Ambiente: ${process.env.NODE_ENV || 'development'}`)
 })
