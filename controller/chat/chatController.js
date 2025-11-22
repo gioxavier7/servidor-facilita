@@ -6,7 +6,7 @@
  */
 
 const chatDAO = require('../../model/dao/chat')
-const socketService = require('../../utils/socketService')
+const socketService = require('../../service/socketService')
 
 /**
  * envia mensagem no chat do serviço

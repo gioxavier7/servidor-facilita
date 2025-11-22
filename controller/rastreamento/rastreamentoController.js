@@ -7,7 +7,7 @@
 
 const rastreamentoDAO = require('../../model/dao/rastreamento')
 const servicoDAO = require('../../model/dao/servico')
-const socketService = require('../../utils/socketService')
+const socketService = require('../../service/socketService')
 
 /**
  * inicia deslocamento do prestador

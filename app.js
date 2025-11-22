@@ -68,6 +68,17 @@ const rastreamentoRoutes = require('./routes/rastreamentoRoutes')
 const chatRoutes = require('./routes/chatRoutes');
 const recargaRoutes = require('./routes/recargasRoutes')
 
+// ===== Middleware Gerais =====
+const cacheMiddleware = require('./middleware/cache');
+const rateLimit = require('./middleware/rateLimit');
+
+// Limite global por IP
+app.use(rateLimit(60000, 120)); // 120 req/minuto
+
+// Cache apenas para GET
+app.use(cacheMiddleware(300)); // 300 segundos = 5min
+
+
 // ========== ROTAS ==========
 
 // ROTAS DE USUÁRIO (auth + CRUD)
