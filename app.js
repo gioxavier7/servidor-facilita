@@ -2,14 +2,12 @@
  * Objetivo: API responsável pelas requisições do TCC Facilita
  * Data: 13/09/2025
  * Dev: giovanna
- * Versões: 1.0 
+ * Versões: 1.5
  */
 
-const express = require('express')
-const cors = require('cors')
-const bodyParser = require('body-parser')
-const path = require('path')
-const http = require('http')
+const express = require('express');
+const bodyParser = require('body-parser');
+const http = require('http');
 
 // carregar variáveis de ambiente dependendo do ambiente
 if (process.env.NODE_ENV !== 'production') {
@@ -17,8 +15,8 @@ if (process.env.NODE_ENV !== 'production') {
 }
 
 // ========== CONFIGURAÇÃO DO SERVIDOR ==========
-const app = express()
-const PORT = process.env.PORT || 3000
+const app = express();
+const PORT = process.env.PORT || 3000;
 
 // ========== WEBSOCKET (Tempo Real) ==========
 const socketService = require('./utils/socketService');
@@ -28,106 +26,101 @@ const server = http.createServer(app);
 socketService.init(server);
 
 // ========== MIDDLEWARES GLOBAIS ==========
-app.use(bodyParser.json())
+app.use(bodyParser.json());
 
-// configuração de CORS (local + produção)
+// CORS dinâmico
 const allowedOrigins = [
-  'http://localhost:5173',     // frontend local
-  process.env.FRONTEND_URL     // frontend em produção
-]
+  'http://localhost:5173',
+  process.env.FRONTEND_URL
+];
 
 app.use((req, res, next) => {
-  const origin = req.headers.origin
+  const origin = req.headers.origin;
   if (allowedOrigins.includes(origin)) {
-    res.header('Access-Control-Allow-Origin', origin)
+    res.header('Access-Control-Allow-Origin', origin);
   }
 
-  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS')
-  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization')
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 
   if (req.method === 'OPTIONS') {
-    return res.sendStatus(200) // resposta pro preflight
+    return res.sendStatus(200);
   }
 
-  next()
-})
+  next();
+});
 
 // ========== IMPORTAÇÃO DAS ROTAS ==========
-const usuarioRoutes = require('./routes/usuarioRoutes')
-const contratanteRoutes = require('./routes/contratanteRoutes')
-const prestadorRoutes = require('./routes/prestadorRoutes')
-const localizacaoRoutes = require('./routes/localizacaoRoutes')
-const servicoRoutes = require('./routes/servicoRoutes')
-const categoriaRoutes = require('./routes/categoriaRoutes')
-const pagamentoRoutes = require('./routes/pagamentoRoutes')
-const carteiraRoutes = require('./routes/carteiraRoutes')
-const transacaoCarteiraRoutes = require('./routes/transacaoCarteiraRoutes')
-const pagbankWebhookRoutes = require('./routes/pagbankWebhookRoutes')
-const avaliacaoRoutes = require('./routes/avaliacaoRoutes')
-const notificacaoRoutes = require('./routes/notificacaoRoutes')
-const rastreamentoRoutes = require('./routes/rastreamentoRoutes')
+const usuarioRoutes = require('./routes/usuarioRoutes');
+const contratanteRoutes = require('./routes/contratanteRoutes');
+const prestadorRoutes = require('./routes/prestadorRoutes');
+const localizacaoRoutes = require('./routes/localizacaoRoutes');
+const servicoRoutes = require('./routes/servicoRoutes');
+const categoriaRoutes = require('./routes/categoriaRoutes');
+const pagamentoRoutes = require('./routes/pagamentoRoutes');
+const carteiraRoutes = require('./routes/carteiraRoutes');
+const transacaoCarteiraRoutes = require('./routes/transacaoCarteiraRoutes');
+const pagbankWebhookRoutes = require('./routes/pagbankWebhookRoutes');
+const avaliacaoRoutes = require('./routes/avaliacaoRoutes');
+const notificacaoRoutes = require('./routes/notificacaoRoutes');
+const rastreamentoRoutes = require('./routes/rastreamentoRoutes');
 const chatRoutes = require('./routes/chatRoutes');
-const recargaRoutes = require('./routes/recargasRoutes')
+const recargaRoutes = require('./routes/recargasRoutes');
 const healthRoutes = require('./routes/healthRoutes');
 
-// ===== Middleware Gerais =====
+// ===== Middlewares =====
 const cacheMiddleware = require('./middleware/cache');
 const rateLimit = require('./middleware/rateLimit');
 
-// ========== CONFIGURAÇÃO DE ROTAS COM MIDDLEWARES ESPECÍFICOS ==========
+// ---------- RATE LIMIT DEDICADO ----------
+const publicRateLimit = rateLimit({
+  windowMs: 60000,
+  max: 50,
+  keyType: "ip"
+});
 
-// ✅ CORREÇÃO: Health Check PRIMEIRO (sem rate limit)
-app.use('/v1/facilita/health', healthRoutes)
+const userRateLimit = rateLimit({
+  windowMs: 60000,
+  max: 200,
+  keyType: "user"
+});
 
-// ✅ CORREÇÃO: Webhooks SEGUNDO (sem rate limit)
-app.use('/v1/facilita/pagamento/webhook', pagbankWebhookRoutes)
+// ========== ROTAS SEM RATE LIMIT ==========
 
-// ✅ Aplicar rate limit global (exceto health e webhooks que já foram definidos)
-app.use(rateLimit(60000, 120)); // 120 req/minuto
+// Health — SEM rate limit
+app.use('/v1/facilita/health', healthRoutes);
 
-// ========== ROTAS COM CACHE ESTRATÉGICO ==========
+// Webhook PagBank — SEM rate limit
+app.use('/v1/facilita/pagamento/webhook', pagbankWebhookRoutes);
 
-// CATEGORIAS - Cache longo (dados estáticos) - ✅ ÚNICA que funciona com cache
-app.use('/v1/facilita/categoria', cacheMiddleware(3600), categoriaRoutes) // 1 hora
+// ========== ROTAS PÚBLICAS COM RATE LIMIT (IP) ==========
 
-// ========== ROTAS SEM CACHE (TODAS AUTENTICADAS) ==========
+app.use('/v1/facilita/usuario', publicRateLimit, usuarioRoutes);
+app.use('/v1/facilita/contratante', publicRateLimit, contratanteRoutes);
 
-// SERVIÇOS - SEM cache (todas as rotas usam authMiddleware)
-app.use('/v1/facilita/servico', servicoRoutes)
+// ========== ROTAS COM CACHE ==========
+app.use('/v1/facilita/categoria', cacheMiddleware(3600), categoriaRoutes);
 
-// LOCALIZAÇÃO - SEM cache (todas as rotas são autenticadas)
-app.use('/v1/facilita/localizacao', localizacaoRoutes)
+// ========== ROTAS AUTENTICADAS COM RATE LIMIT (USER) ==========
 
-// PRESTADORES - SEM cache (todas as rotas são autenticadas)
-app.use('/v1/facilita/prestador', prestadorRoutes)
+app.use('/v1/facilita/prestador', userRateLimit, prestadorRoutes);
+app.use('/v1/facilita/localizacao', userRateLimit, localizacaoRoutes);
+app.use('/v1/facilita/servico', userRateLimit, servicoRoutes);
+app.use('/v1/facilita/pagamento', userRateLimit, pagamentoRoutes);
+app.use('/v1/facilita/carteira', userRateLimit, carteiraRoutes);
+app.use('/v1/facilita/transacao', userRateLimit, transacaoCarteiraRoutes);
+app.use('/v1/facilita/avaliacao', userRateLimit, avaliacaoRoutes);
+app.use('/v1/facilita/notificacao', userRateLimit, notificacaoRoutes);
+app.use('/v1/facilita/rastreamento', userRateLimit, rastreamentoRoutes);
+app.use('/v1/facilita/chat', userRateLimit, chatRoutes);
+app.use('/v1/facilita/recarga', userRateLimit, recargaRoutes);
 
-// AVALIAÇÕES - SEM cache (todas as rotas usam authMiddleware)
-app.use('/v1/facilita/avaliacao', avaliacaoRoutes)
-
-// Dados sensíveis/dinâmicos (SEM cache)
-app.use('/v1/facilita/usuario', usuarioRoutes)
-app.use('/v1/facilita/contratante', contratanteRoutes)
-app.use('/v1/facilita/pagamento', pagamentoRoutes)
-app.use('/v1/facilita/carteira', carteiraRoutes)
-app.use('/v1/facilita/transacao', transacaoCarteiraRoutes)
-app.use('/v1/facilita/notificacao', notificacaoRoutes)
-app.use('/v1/facilita/rastreamento', rastreamentoRoutes)
-app.use('/v1/facilita/chat', chatRoutes)
-app.use('/v1/facilita/recarga', recargaRoutes)
-
-// ========== ROTA DE FALLBACK PARA 404 ==========
-// ✅ CORREÇÃO: Usar app.all('*') para capturar TODAS as rotas não definidas
+// ========== ROTA 404 GLOBAL ==========
 app.all('*', (req, res) => {
   res.status(404).json({
     error: 'Rota não encontrada',
     message: `A rota ${req.originalUrl} não existe nesta API`,
     timestamp: new Date().toISOString(),
-    available_routes: [
-      'GET  /v1/facilita/health',
-      'POST /v1/facilita/usuario/login',
-      'POST /v1/facilita/usuario/register',
-      'GET  /v1/facilita/categoria'
-    ]
   });
 });
 
@@ -141,9 +134,9 @@ app.use((error, req, res, next) => {
   });
 });
 
-// ========== START DO SERVIDOR =========
+// ========== START DO SERVIDOR ==========
 server.listen(PORT, () => {
-  console.log(`🚀 Servidor rodando na porta ${PORT}...`)
-  console.log(`🔌 WebSocket ativo na porta ${PORT}`)
-  console.log(`📍 Ambiente: ${process.env.NODE_ENV || 'development'}`)
-})
+  console.log(`🚀 Servidor rodando na porta ${PORT}...`);
+  console.log(`🔌 WebSocket ativo na porta ${PORT}`);
+  console.log(`📍 Ambiente: ${process.env.NODE_ENV || 'development'}`);
+});
