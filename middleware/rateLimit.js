@@ -1,35 +1,38 @@
-// middleware/rateLimit.js - VERSÃO CORRIGIDA
-const redisClient = require('../utils/redis');
+const redis = require('../utils/redis');
 const logger = require('../utils/logger');
 
 const rateLimit = (windowMs = 60000, maxRequests = 100) => {
   return async (req, res, next) => {
-    // Skip rate limiting para health e webhooks
+
+    // Ignorar webhooks e healthcheck
     if (req.path.includes('health') || req.path.includes('webhook')) {
       return next();
     }
 
-    const clientIP = req.ip || req.connection.remoteAddress;
+    const clientIP = (req.headers['x-forwarded-for'] || req.ip || '')
+      .replace('::ffff:', '')
+      .split(',')[0]
+      .trim();
+
     const key = `rate_limit:${clientIP}:${Math.floor(Date.now() / windowMs)}`;
 
     try {
-      const current = await redisClient.incr(key);
-      
-      // Se é a primeira requisição neste intervalo, setar expire
+      const current = await redis.incr(key);
+
       if (current === 1) {
-        await redisClient.expire(key, Math.ceil(windowMs / 1000));
+        await redis.expire(key, Math.ceil(windowMs / 1000));
       }
-      
+
       if (current > maxRequests) {
-        logger.warn(`Rate limit exceeded for IP: ${clientIP}, Path: ${req.path}`);
+        logger.warn(`Rate limit exceeded for ${clientIP}`);
+
         return res.status(429).json({
           error: 'Muitas requisições',
-          message: `Limite de ${maxRequests} requisições por ${windowMs / 1000} segundos excedido`,
-          retryAfter: Math.ceil(windowMs / 1000)
+          message: `Limite de ${maxRequests} requisições por ${windowMs / 1000}s excedido`,
+          retryAfter: Math.ceil(windowMs / 1000),
         });
       }
 
-      // Add headers para informar sobre rate limit
       res.set({
         'X-RateLimit-Limit': maxRequests,
         'X-RateLimit-Remaining': Math.max(0, maxRequests - current),
@@ -39,7 +42,7 @@ const rateLimit = (windowMs = 60000, maxRequests = 100) => {
       next();
     } catch (error) {
       logger.error('Rate limit error:', error);
-      next(); // Em caso de erro no Redis, permite a requisição
+      next();
     }
   };
 };
