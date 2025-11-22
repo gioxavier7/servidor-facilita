@@ -115,14 +115,15 @@ app.use('/v1/facilita/rastreamento', userRateLimit, rastreamentoRoutes);
 app.use('/v1/facilita/chat', userRateLimit, chatRoutes);
 app.use('/v1/facilita/recarga', userRateLimit, recargaRoutes);
 
-// ========== ROTA 404 GLOBAL ==========
-app.all('*', (req, res) => {
+// ========== ROTA DE FALLBACK PARA 404 (Express 5 compatível) ==========
+app.use((req, res) => {
   res.status(404).json({
     error: 'Rota não encontrada',
     message: `A rota ${req.originalUrl} não existe nesta API`,
     timestamp: new Date().toISOString(),
   });
 });
+
 
 // ========== MIDDLEWARE DE ERRO GLOBAL ==========
 app.use((error, req, res, next) => {
