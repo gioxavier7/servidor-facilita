@@ -87,22 +87,22 @@ app.use(rateLimit(60000, 120)); // 120 req/minuto
 
 // ========== ROTAS COM CACHE ESTRATÉGICO ==========
 
-// CATEGORIAS - Cache longo (dados estáticos)
+// CATEGORIAS - Cache longo (dados estáticos) - ✅ ÚNICA que funciona com cache
 app.use('/v1/facilita/categoria', cacheMiddleware(3600), categoriaRoutes) // 1 hora
 
-// SERVIÇOS - Cache médio (apenas rotas públicas) - ⚠️ LEMBRETE: Só funciona se tiver rotas públicas
+// ========== ROTAS SEM CACHE (TODAS AUTENTICADAS) ==========
+
+// SERVIÇOS - SEM cache (todas as rotas usam authMiddleware)
 app.use('/v1/facilita/servico', servicoRoutes)
 
-// LOCALIZAÇÃO - Cache médio - ⚠️ LEMBRETE: Só funciona se tiver rotas públicas
+// LOCALIZAÇÃO - SEM cache (todas as rotas são autenticadas)
 app.use('/v1/facilita/localizacao', localizacaoRoutes)
 
-// PRESTADORES - Cache médio (apenas listagem pública) - ⚠️ LEMBRETE: Só funciona se tiver rotas públicas
+// PRESTADORES - SEM cache (todas as rotas são autenticadas)
 app.use('/v1/facilita/prestador', prestadorRoutes)
 
-// AVALIAÇÕES - Cache médio - ⚠️ LEMBRETE: Só funciona se tiver rotas públicas
+// AVALIAÇÕES - SEM cache (todas as rotas usam authMiddleware)
 app.use('/v1/facilita/avaliacao', avaliacaoRoutes)
-
-// ========== ROTAS SEM CACHE ==========
 
 // Dados sensíveis/dinâmicos (SEM cache)
 app.use('/v1/facilita/usuario', usuarioRoutes)
@@ -116,11 +116,18 @@ app.use('/v1/facilita/chat', chatRoutes)
 app.use('/v1/facilita/recarga', recargaRoutes)
 
 // ========== ROTA DE FALLBACK PARA 404 ==========
-app.use((req, res) => {
+// ✅ CORREÇÃO: Usar app.all('*') para capturar TODAS as rotas não definidas
+app.all('*', (req, res) => {
   res.status(404).json({
     error: 'Rota não encontrada',
     message: `A rota ${req.originalUrl} não existe nesta API`,
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
+    available_routes: [
+      'GET  /v1/facilita/health',
+      'POST /v1/facilita/usuario/login',
+      'POST /v1/facilita/usuario/register',
+      'GET  /v1/facilita/categoria'
+    ]
   });
 });
 

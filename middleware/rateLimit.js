@@ -1,10 +1,11 @@
+// middleware/rateLimit.js - VERSÃO CORRIGIDA
 const redisClient = require('../utils/redis');
 const logger = require('../utils/logger');
 
 const rateLimit = (windowMs = 60000, maxRequests = 100) => {
   return async (req, res, next) => {
-    // Skip rate limiting for webhooks and health checks
-    if (req.path.includes('webhook') || req.path === '/health') {
+    // Skip rate limiting para health e webhooks
+    if (req.path.includes('health') || req.path.includes('webhook')) {
       return next();
     }
 
@@ -12,13 +13,14 @@ const rateLimit = (windowMs = 60000, maxRequests = 100) => {
     const key = `rate_limit:${clientIP}:${Math.floor(Date.now() / windowMs)}`;
 
     try {
-      const current = await redisClient.get(key);
+      const current = await redisClient.incr(key);
       
-      if (current === null) {
-        await redisClient.set(key, '1', Math.ceil(windowMs / 1000));
-      } else if (parseInt(current) < maxRequests) {
-        await redisClient.set(key, (parseInt(current) + 1).toString(), Math.ceil(windowMs / 1000));
-      } else {
+      // Se é a primeira requisição neste intervalo, setar expire
+      if (current === 1) {
+        await redisClient.expire(key, Math.ceil(windowMs / 1000));
+      }
+      
+      if (current > maxRequests) {
         logger.warn(`Rate limit exceeded for IP: ${clientIP}, Path: ${req.path}`);
         return res.status(429).json({
           error: 'Muitas requisições',
@@ -27,10 +29,10 @@ const rateLimit = (windowMs = 60000, maxRequests = 100) => {
         });
       }
 
-      // Add headers to inform client about rate limit status
+      // Add headers para informar sobre rate limit
       res.set({
         'X-RateLimit-Limit': maxRequests,
-        'X-RateLimit-Remaining': Math.max(0, maxRequests - (parseInt(current) || 0) - 1),
+        'X-RateLimit-Remaining': Math.max(0, maxRequests - current),
         'X-RateLimit-Reset': Math.ceil(Date.now() / 1000) + Math.ceil(windowMs / 1000)
       });
 
