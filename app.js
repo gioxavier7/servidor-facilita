@@ -18,7 +18,7 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // ========== WEBSOCKET ==========
-const socketService = require('./utils/socketService');
+const socketService = require('./service/socketService');
 const server = http.createServer(app);
 socketService.init(server);
 
