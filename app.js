@@ -2,14 +2,13 @@
  * Objetivo: API responsável pelas requisições do TCC Facilita
  * Data: 13/09/2025
  * Dev: giovanna
- * Versões: 1.5
+ * Versões: 1.5 (SEM RATE LIMIT PARA TESTES JMETER)
  */
 
 const express = require('express');
 const bodyParser = require('body-parser');
 const http = require('http');
 
-// carregar variáveis de ambiente dependendo do ambiente
 if (process.env.NODE_ENV !== 'production') {
   require('dotenv').config({ path: '.env.development' });
 }
@@ -18,17 +17,15 @@ if (process.env.NODE_ENV !== 'production') {
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// ========== WEBSOCKET (Tempo Real) ==========
+// ========== WEBSOCKET ==========
 const socketService = require('./utils/socketService');
 const server = http.createServer(app);
-
-// Inicializar WebSocket
 socketService.init(server);
 
 // ========== MIDDLEWARES GLOBAIS ==========
 app.use(bodyParser.json());
 
-// CORS dinâmico
+// CORS
 const allowedOrigins = [
   'http://localhost:5173',
   process.env.FRONTEND_URL
@@ -43,10 +40,7 @@ app.use((req, res, next) => {
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
   res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 
-  if (req.method === 'OPTIONS') {
-    return res.sendStatus(200);
-  }
-
+  if (req.method === 'OPTIONS') return res.sendStatus(200);
   next();
 });
 
@@ -68,54 +62,34 @@ const chatRoutes = require('./routes/chatRoutes');
 const recargaRoutes = require('./routes/recargasRoutes');
 const healthRoutes = require('./routes/healthRoutes');
 
-// ===== Middlewares =====
 const cacheMiddleware = require('./middleware/cache');
-const rateLimit = require('./middleware/rateLimit');
-
-// ---------- RATE LIMIT DEDICADO ----------
-const publicRateLimit = rateLimit({
-  windowMs: 60000,
-  max: 50,
-  keyType: "ip"
-});
-
-const userRateLimit = rateLimit({
-  windowMs: 60000,
-  max: 200,
-  keyType: "user"
-});
 
 // ========== ROTAS SEM RATE LIMIT ==========
 
-// Health — SEM rate limit
 app.use('/v1/facilita/health', healthRoutes);
-
-// Webhook PagBank — SEM rate limit
 app.use('/v1/facilita/pagamento/webhook', pagbankWebhookRoutes);
 
-// ========== ROTAS PÚBLICAS COM RATE LIMIT (IP) ==========
-
-app.use('/v1/facilita/usuario', publicRateLimit, usuarioRoutes);
-app.use('/v1/facilita/contratante', publicRateLimit, contratanteRoutes);
+// ========== ROTAS PÚBLICAS ==========
+app.use('/v1/facilita/usuario', usuarioRoutes);
+app.use('/v1/facilita/contratante', contratanteRoutes);
 
 // ========== ROTAS COM CACHE ==========
 app.use('/v1/facilita/categoria', cacheMiddleware(3600), categoriaRoutes);
 
-// ========== ROTAS AUTENTICADAS COM RATE LIMIT (USER) ==========
+// ========== ROTAS AUTENTICADAS ==========
+app.use('/v1/facilita/prestador', prestadorRoutes);
+app.use('/v1/facilita/localizacao', localizacaoRoutes);
+app.use('/v1/facilita/servico', servicoRoutes);
+app.use('/v1/facilita/pagamento', pagamentoRoutes);
+app.use('/v1/facilita/carteira', carteiraRoutes);
+app.use('/v1/facilita/transacao', transacaoCarteiraRoutes);
+app.use('/v1/facilita/avaliacao', avaliacaoRoutes);
+app.use('/v1/facilita/notificacao', notificacaoRoutes);
+app.use('/v1/facilita/rastreamento', rastreamentoRoutes);
+app.use('/v1/facilita/chat', chatRoutes);
+app.use('/v1/facilita/recarga', recargaRoutes);
 
-app.use('/v1/facilita/prestador', userRateLimit, prestadorRoutes);
-app.use('/v1/facilita/localizacao', userRateLimit, localizacaoRoutes);
-app.use('/v1/facilita/servico', userRateLimit, servicoRoutes);
-app.use('/v1/facilita/pagamento', userRateLimit, pagamentoRoutes);
-app.use('/v1/facilita/carteira', userRateLimit, carteiraRoutes);
-app.use('/v1/facilita/transacao', userRateLimit, transacaoCarteiraRoutes);
-app.use('/v1/facilita/avaliacao', userRateLimit, avaliacaoRoutes);
-app.use('/v1/facilita/notificacao', userRateLimit, notificacaoRoutes);
-app.use('/v1/facilita/rastreamento', userRateLimit, rastreamentoRoutes);
-app.use('/v1/facilita/chat', userRateLimit, chatRoutes);
-app.use('/v1/facilita/recarga', userRateLimit, recargaRoutes);
-
-// ========== ROTA DE FALLBACK PARA 404 (Express 5 compatível) ==========
+// ========== FALLBACK 404 ==========
 app.use((req, res) => {
   res.status(404).json({
     error: 'Rota não encontrada',
@@ -124,8 +98,7 @@ app.use((req, res) => {
   });
 });
 
-
-// ========== MIDDLEWARE DE ERRO GLOBAL ==========
+// ========== ERROS ==========
 app.use((error, req, res, next) => {
   console.error('Erro global:', error);
   res.status(500).json({
@@ -135,7 +108,7 @@ app.use((error, req, res, next) => {
   });
 });
 
-// ========== START DO SERVIDOR ==========
+// ========== START ==========
 server.listen(PORT, () => {
   console.log(`🚀 Servidor rodando na porta ${PORT}...`);
   console.log(`🔌 WebSocket ativo na porta ${PORT}`);
