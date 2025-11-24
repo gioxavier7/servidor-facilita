@@ -765,6 +765,205 @@ const selectServicosRecusados = async (prestadorId) => {
   }
 }
 
+/**
+ * Cancela um serviço pelo contratante
+ * @param {number} servicoId - ID do serviço
+ * @param {number} usuarioId - ID do usuário contratante
+ * @param {string} motivoCancelamento - Motivo opcional do cancelamento
+ * @returns {Object} - Serviço atualizado
+ */
+const cancelarServico = async (servicoId, usuarioId, motivoCancelamento = null) => {
+  try {
+    // Busca o contratante baseado no usuarioId
+    const contratante = await prisma.contratante.findUnique({
+      where: { id_usuario: usuarioId },
+      select: { id: true }
+    })
+
+    if (!contratante) {
+      throw new Error('Contratante não encontrado')
+    }
+
+    const contratanteId = contratante.id
+
+    // Verifica se o serviço existe
+    const servico = await prisma.servico.findUnique({
+      where: { id: servicoId },
+      include: {
+        prestador: {
+          select: {
+            id: true,
+            usuario: {
+              select: {
+                id: true,
+                nome: true,
+                email: true
+              }
+            }
+          }
+        },
+        contratante: {
+          select: {
+            id: true,
+            usuario: {
+              select: {
+                id: true,
+                nome: true,
+                email: true
+              }
+            }
+          }
+        },
+        pagamentos: {
+          where: {
+            status: {
+              in: ['PAGO', 'PENDENTE']
+            }
+          },
+          select: {
+            id: true,
+            status: true,
+            valor: true
+          }
+        }
+      }
+    })
+
+    if (!servico) {
+      throw new Error('Serviço não encontrado')
+    }
+
+    // Verifica se o serviço pertence ao contratante
+    if (servico.id_contratante !== contratanteId) {
+      throw new Error('Este serviço não pertence ao contratante')
+    }
+
+    // Verifica se o serviço já está cancelado
+    if (servico.status === 'CANCELADO') {
+      throw new Error('Serviço já está cancelado')
+    }
+
+    // Verifica se o serviço já foi concluído ou finalizado
+    if (servico.status === 'CONCLUIDO' || servico.status === 'FINALIZADO') {
+      throw new Error('Não é possível cancelar um serviço já concluído/finalizado')
+    }
+
+    // Status permitidos para cancelamento
+    const statusPermitidos = ['PENDENTE', 'EM_ANDAMENTO']
+
+    if (!statusPermitidos.includes(servico.status)) {
+      throw new Error(`Serviço não pode ser cancelado no status: ${servico.status}`)
+    }
+
+    // Se o serviço está em andamento, requer um motivo
+    if (servico.status === 'EM_ANDAMENTO' && !motivoCancelamento) {
+      throw new Error('Motivo é obrigatório para cancelar serviço em andamento')
+    }
+
+    // Inicia transação para garantir consistência
+    const resultado = await prisma.$transaction(async (tx) => {
+      // Atualiza o serviço para cancelado
+      const servicoAtualizado = await tx.servico.update({
+        where: { id: servicoId },
+        data: {
+          status: 'CANCELADO',
+          data_conclusao: new Date()
+        },
+        include: {
+          prestador: {
+            select: {
+              id: true,
+              usuario: {
+                select: {
+                  id: true,
+                  nome: true,
+                  email: true
+                }
+              }
+            }
+          },
+          contratante: {
+            select: {
+              id: true,
+              usuario: {
+                select: {
+                  id: true,
+                  nome: true,
+                  email: true
+                }
+              }
+            }
+          }
+        }
+      })
+
+      // Cancela pagamentos pendentes
+      if (servico.pagamentos && servico.pagamentos.length > 0) {
+        await tx.pagamento.updateMany({
+          where: {
+            id_servico: servicoId,
+            status: 'PENDENTE'
+          },
+          data: {
+            status: 'CANCELADO'
+          }
+        })
+      }
+
+      // Se havia pagamento pago, processa reembolso
+      const pagamentoPago = servico.pagamentos.find(p => p.status === 'PAGO')
+      if (pagamentoPago) {
+        //implementar a lógica de reembolso
+        //por enquanto só atualiza o status
+        await tx.pagamento.update({
+          where: { id: pagamentoPago.id },
+          data: { status: 'CANCELADO' }
+        })
+
+        // Adiciona registro de reembolso se necessário
+        // await processarReembolso(pagamentoPago.id, servicoAtualizado)
+      }
+
+      // Cria notificação para o prestador se houver
+      if (servico.id_prestador) {
+        await tx.notificacao.create({
+          data: {
+            id_usuario: servico.prestador.usuario.id,
+            id_servico: servicoId,
+            tipo: 'CANCELAMENTO_SERVICO',
+            titulo: 'Serviço Cancelado',
+            mensagem: `O serviço #${servicoId} foi cancelado pelo contratante.${motivoCancelamento ? ` Motivo: ${motivoCancelamento}` : ''}`,
+            data_criacao: new Date()
+          }
+        })
+      }
+
+      // Registra no rastreamento
+      await tx.rastreamento_servico.create({
+        data: {
+          id_servico: servicoId,
+          status: 'FINALIZADO',
+          observacao: `Serviço cancelado pelo contratante.${motivoCancelamento ? ` Motivo: ${motivoCancelamento}` : ''}`,
+          data_hora: new Date()
+        }
+      })
+
+      return {
+        servico: servicoAtualizado,
+        mensagem: 'Serviço cancelado com sucesso',
+        reembolsoProcessado: !!pagamentoPago,
+        motivoCancelamento: motivoCancelamento
+      }
+    })
+
+    return resultado
+
+  } catch (error) {
+    console.error('Erro ao cancelar serviço:', error)
+    throw error
+  }
+}
+
 module.exports = {
   insertServico,
   selectAllServico,
@@ -785,5 +984,6 @@ module.exports = {
   recusarServico,
   selectServicosRecusados,
   selectServicosPorPrestadorEStatus,
-  countServicosPorPrestador
+  countServicosPorPrestador,
+  cancelarServico
 }

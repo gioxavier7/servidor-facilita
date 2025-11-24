@@ -29,11 +29,13 @@ router.patch('/:id/confirmar-conclusao', servicoController.confirmarConclusao)
 router.post('/from-categoria/:categoriaId', servicoController.criarServicoPorCategoria)
 router.get('/:id/detalhes', servicoController.getDetalhesPedido)
 router.post('/:id/recusar', authMiddleware, servicoController.recusarServico)
+router.put('/:id/cancelar', cancelarServico)
 
 //rotas basicas com parametros
 router.get('/:id', servicoController.buscarServicoPorId)
 router.put('/:id', servicoController.atualizarServico)
 router.delete('/:id', servicoController.deletarServico)
+
 
 //rotas sem parametros
 router.post('/', servicoController.cadastrarServico)

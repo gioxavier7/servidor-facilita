@@ -1672,6 +1672,68 @@ const listarServicosRecusados = async (req, res) => {
   }
 }
 
+/**
+ * Cancela um serviço (APENAS CONTRATANTE)
+ */
+const cancelarServico = async (req, res) => {
+  try {
+    const { id } = req.params
+    const { motivo } = req.body
+    const usuarioId = req.user.id
+
+    if (!id) {
+      return res.status(400).json({ 
+        status_code: 400, 
+        message: 'ID do serviço é obrigatório' 
+      })
+    }
+
+    // Verifica se o usuário é um contratante
+    if (req.user.tipo !== 'CONTRATANTE') {
+      return res.status(403).json({ 
+        status_code: 403, 
+        message: 'Acesso negado. Apenas contratantes podem cancelar serviços' 
+      })
+    }
+
+    const resultado = await servicoDAO.cancelarServico(
+      Number(id), 
+      usuarioId, 
+      motivo
+    )
+
+    res.status(200).json({ 
+      status_code: 200, 
+      message: 'Serviço cancelado com sucesso',
+      data: resultado
+    })
+
+  } catch (error) {
+    console.error('Erro ao cancelar serviço:', error)
+    
+    if (error.message.includes('não encontrado')) {
+      return res.status(404).json({ 
+        status_code: 404, 
+        message: error.message 
+      })
+    }
+    
+    if (error.message.includes('não pode ser cancelado') || 
+        error.message.includes('não pertence ao contratante') ||
+        error.message.includes('já está cancelado') ||
+        error.message.includes('já foi concluído')) {
+      return res.status(400).json({ 
+        status_code: 400, 
+        message: error.message 
+      })
+    }
+
+    res.status(500).json({ 
+      status_code: 500, 
+      message: 'Erro interno do servidor ao cancelar serviço' 
+    })
+  }
+}
 module.exports = {
   cadastrarServico,
   atualizarServico,
@@ -1692,5 +1754,6 @@ module.exports = {
   getDetalhesPedido,
   recusarServico,
   listarServicosRecusados,
-  listarPedidosPrestador
+  listarPedidosPrestador,
+  cancelarServico
 }
