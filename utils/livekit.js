@@ -1,4 +1,4 @@
-const { AccessToken, RoomServiceClient } = require('@livekit/server-sdk');
+const { AccessToken, RoomServiceClient } = require('livekit-client');
 
 const apiKey = process.env.LIVEKIT_API_KEY;
 const apiSecret = process.env.LIVEKIT_API_SECRET;
