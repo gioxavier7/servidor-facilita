@@ -3,7 +3,7 @@
  * dev: Giovanna Xavier
  * data: 23/10/2025
  */
-const prisma = require("../../prisma.js");
+const prisma = require("../../prismaClient.js");
 
 const insertParadas = async (paradas) => {
   try {

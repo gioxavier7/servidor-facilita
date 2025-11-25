@@ -1,4 +1,4 @@
-const prisma = require("../../prisma.js");
+const prisma = require("../../prismaClient.js");
 
 const insertRecarga = async (recarga) => {
   try {

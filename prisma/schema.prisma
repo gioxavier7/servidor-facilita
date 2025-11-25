@@ -1,7 +1,7 @@
 generator client {
   provider      = "prisma-client-js"
-  binaryTargets = ["native", "debian-openssl-3.0.x"] // CORREÇÃO DE BINÁRIO
-  output        = "./prisma/generated/client"        // CORREÇÃO DE CAMINHO
+  output        = "./prisma/generated/client"
+  binaryTargets = ["native", "debian-openssl-3.0.x"]
 }
 
 datasource db {
@@ -10,21 +10,21 @@ datasource db {
 }
 
 model recuperacaoSenha {
-  id        Int      @id @default(autoincrement())
-  usuarioId Int
-  codigo    String   @db.VarChar(6)
-  expira    DateTime
-  usado     Boolean  @default(false)
-  criadoEm  DateTime @default(now()) @map("criado_em")
-  usuario   usuario  @relation(fields: [usuarioId], references: [id])
+  id         Int       @id @default(autoincrement())
+  usuario_id Int
+  codigo     String    @db.VarChar(6)
+  expira     DateTime  @db.DateTime(0)
+  usado      Boolean?  @default(false)
+  criadoEm   DateTime? @default(now()) @map("criado_em") @db.DateTime(0)
+  usuario    usuario   @relation(fields: [usuario_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "recuperacao_senha_ibfk_1")
 
-  @@index([usuarioId])
+  @@index([usuario_id], map: "idx_recuperacao_senha_usuario_id")
   @@map("recuperacao_senha")
 }
 
 model categoria {
   id          Int       @id @default(autoincrement())
-  nome        String    @unique
+  nome        String    @unique(map: "nome") @db.VarChar(255)
   descricao   String?   @db.Text
   icone       String?   @db.VarChar(50)
   preco_base  Decimal?  @db.Decimal(10, 2)
@@ -35,20 +35,20 @@ model categoria {
 }
 
 model servico_parada {
-  id                     Int      @id @default(autoincrement())
+  id                     Int       @id @default(autoincrement())
   id_servico             Int
   ordem                  Int
-  tipo                   String   @db.VarChar(20)
-  lat                    Decimal  @db.Decimal(10, 8)
-  lng                    Decimal  @db.Decimal(11, 8)
-  descricao              String?  @db.VarChar(255)
-  endereco_completo      String?
+  tipo                   String    @db.VarChar(20)
+  lat                    Decimal   @db.Decimal(10, 8)
+  lng                    Decimal   @db.Decimal(11, 8)
+  descricao              String?   @db.VarChar(255)
+  endereco_completo      String?   @db.Text
   tempo_estimado_chegada Int?
-  data_criacao           DateTime @default(now())
-  servico                servico  @relation(fields: [id_servico], references: [id], onDelete: Cascade)
+  data_criacao           DateTime? @default(now()) @db.DateTime(0)
+  servico                servico   @relation(fields: [id_servico], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "servico_parada_ibfk_1")
 
-  @@index([id_servico])
-  @@index([id_servico, ordem])
+  @@index([id_servico], map: "idx_servico_parada_id_servico")
+  @@index([id_servico, ordem], map: "idx_servico_parada_ordem")
   @@map("servico_parada")
 }
 
@@ -57,16 +57,16 @@ model servico {
   id_contratante   Int
   id_prestador     Int?
   id_categoria     Int?
-  descricao        String
-  status           statusServico            @default(PENDENTE)
-  data_solicitacao DateTime                 @default(now())
-  data_conclusao   DateTime?
-  data_confirmacao DateTime?
+  descricao        String                   @db.Text
+  status           statusServico?           @default(PENDENTE)
+  data_solicitacao DateTime?                @default(now()) @db.DateTime(0)
+  data_conclusao   DateTime?                @db.DateTime(0)
+  data_confirmacao DateTime?                @db.DateTime(0)
   id_localizacao   Int?
   valor            Decimal?                 @db.Decimal(10, 2)
   tempo_estimado   Int?
-  data_inicio      DateTime?
-  data_chegada     DateTime?
+  data_inicio      DateTime?                @db.DateTime(0)
+  data_chegada     DateTime?                @db.DateTime(0)
   atualizacoes     atualizacao_tempo_real[]
   avaliacao        avaliacao?
   mensagens        chat_servico[]
@@ -74,16 +74,16 @@ model servico {
   pagamentos       pagamento[]
   rastreamentos    rastreamento_servico[]
   recusas          RecusaServico[]
-  categoria        categoria?               @relation(fields: [id_categoria], references: [id])
-  contratante      contratante              @relation(fields: [id_contratante], references: [id])
-  localizacao      localizacao?             @relation(fields: [id_localizacao], references: [id])
-  prestador        prestador?               @relation(fields: [id_prestador], references: [id])
+  contratante      contratante              @relation(fields: [id_contratante], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "servico_ibfk_1")
+  prestador        prestador?               @relation(fields: [id_prestador], references: [id], onUpdate: NoAction, map: "servico_ibfk_2")
+  categoria        categoria?               @relation(fields: [id_categoria], references: [id], onUpdate: NoAction, map: "servico_ibfk_3")
+  localizacao      localizacao?             @relation(fields: [id_localizacao], references: [id], onUpdate: NoAction, map: "servico_ibfk_4")
   paradas          servico_parada[]
 
-  @@index([id_categoria])
-  @@index([id_contratante])
-  @@index([id_localizacao])
-  @@index([id_prestador])
+  @@index([id_categoria], map: "idx_servico_id_categoria")
+  @@index([id_contratante], map: "idx_servico_id_contratante")
+  @@index([id_localizacao], map: "idx_servico_id_localizacao")
+  @@index([id_prestador], map: "idx_servico_id_prestador")
   @@map("servico")
 }
 
@@ -91,14 +91,14 @@ model rastreamento_servico {
   id         Int                @id @default(autoincrement())
   id_servico Int
   status     StatusRastreamento
-  latitude   Decimal?
-  longitude  Decimal?
-  endereco   String?
-  data_hora  DateTime           @default(now())
+  latitude   Decimal?           @db.Decimal(10, 8)
+  longitude  Decimal?           @db.Decimal(11, 8)
+  endereco   String?            @db.Text
+  data_hora  DateTime?          @default(now()) @db.DateTime(0)
   observacao String?            @db.Text
-  servico    servico            @relation(fields: [id_servico], references: [id])
+  servico    servico            @relation(fields: [id_servico], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "rastreamento_servico_ibfk_1")
 
-  @@index([id_servico])
+  @@index([id_servico], map: "idx_rastreamento_servico_id_servico")
   @@map("rastreamento_servico")
 }
 
@@ -107,16 +107,16 @@ model atualizacao_tempo_real {
   id_servico   Int
   id_prestador Int
   tipo         TipoAtualizacao
-  latitude     Decimal?
-  longitude    Decimal?
+  latitude     Decimal?        @db.Decimal(10, 8)
+  longitude    Decimal?        @db.Decimal(11, 8)
   mensagem     String?         @db.Text
-  url_foto     String?
-  data_criacao DateTime        @default(now())
-  prestador    prestador       @relation(fields: [id_prestador], references: [id])
-  servico      servico         @relation(fields: [id_servico], references: [id])
+  url_foto     String?         @db.Text
+  data_criacao DateTime?       @default(now()) @db.DateTime(0)
+  servico      servico         @relation(fields: [id_servico], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "atualizacao_tempo_real_ibfk_1")
+  prestador    prestador       @relation(fields: [id_prestador], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "atualizacao_tempo_real_ibfk_2")
 
-  @@index([id_servico])
-  @@index([id_prestador])
+  @@index([id_prestador], map: "idx_atualizacao_tempo_real_id_prestador")
+  @@index([id_servico], map: "idx_atualizacao_tempo_real_id_servico")
   @@map("atualizacao_tempo_real")
 }
 
@@ -126,82 +126,82 @@ model chat_servico {
   id_contratante Int
   id_prestador   Int
   mensagem       String      @db.Text
-  tipo           String
-  url_anexo      String?
-  enviado_por    String
-  lida           Boolean     @default(false)
-  data_envio     DateTime    @default(now())
-  contratante    contratante @relation(fields: [id_contratante], references: [id])
-  prestador      prestador   @relation(fields: [id_prestador], references: [id])
-  servico        servico     @relation(fields: [id_servico], references: [id])
+  tipo           String      @db.VarChar(50)
+  url_anexo      String?     @db.Text
+  enviado_por    String      @db.VarChar(50)
+  lida           Boolean?    @default(false)
+  data_envio     DateTime?   @default(now()) @db.DateTime(0)
+  servico        servico     @relation(fields: [id_servico], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "chat_servico_ibfk_1")
+  contratante    contratante @relation(fields: [id_contratante], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "chat_servico_ibfk_2")
+  prestador      prestador   @relation(fields: [id_prestador], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "chat_servico_ibfk_3")
 
-  @@index([id_servico])
-  @@index([id_contratante])
-  @@index([id_prestador])
+  @@index([id_contratante], map: "idx_chat_servico_id_contratante")
+  @@index([id_prestador], map: "idx_chat_servico_id_prestador")
+  @@index([id_servico], map: "idx_chat_servico_id_servico")
   @@map("chat_servico")
 }
 
 model notificacao {
-  id           Int      @id @default(autoincrement())
+  id           Int       @id @default(autoincrement())
   id_usuario   Int
   id_servico   Int?
-  tipo         String
-  titulo       String
-  mensagem     String
-  lida         Boolean  @default(false)
-  data_criacao DateTime @default(now())
-  servico      servico? @relation(fields: [id_servico], references: [id])
-  usuario      usuario  @relation(fields: [id_usuario], references: [id])
+  tipo         String    @db.VarChar(50)
+  titulo       String    @db.VarChar(255)
+  mensagem     String    @db.Text
+  lida         Boolean?  @default(false)
+  data_criacao DateTime? @default(now()) @db.DateTime(0)
+  usuario      usuario   @relation(fields: [id_usuario], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "notificacao_ibfk_1")
+  servico      servico?  @relation(fields: [id_servico], references: [id], onUpdate: NoAction, map: "notificacao_ibfk_2")
 
-  @@index([id_servico])
-  @@index([id_usuario])
+  @@index([id_servico], map: "idx_notificacao_id_servico")
+  @@index([id_usuario], map: "idx_notificacao_id_usuario")
   @@map("notificacao")
 }
 
 model avaliacao {
   id             Int         @id @default(autoincrement())
-  id_servico     Int         @unique
+  id_servico     Int         @unique(map: "id_servico")
   id_contratante Int
   id_prestador   Int
   nota           Int
   comentario     String?     @db.Text
-  data_avaliacao DateTime?   @default(now())
-  contratante    contratante @relation(fields: [id_contratante], references: [id])
-  prestador      prestador   @relation(fields: [id_prestador], references: [id])
-  servico        servico     @relation(fields: [id_servico], references: [id])
+  data_avaliacao DateTime?   @default(now()) @db.DateTime(0)
+  servico        servico     @relation(fields: [id_servico], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "avaliacao_ibfk_1")
+  contratante    contratante @relation(fields: [id_contratante], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "avaliacao_ibfk_2")
+  prestador      prestador   @relation(fields: [id_prestador], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "avaliacao_ibfk_3")
 
-  @@index([id_contratante])
-  @@index([id_prestador])
+  @@index([id_contratante], map: "idx_avaliacao_id_contratante")
+  @@index([id_prestador], map: "idx_avaliacao_id_prestador")
   @@map("avaliacao")
 }
 
 model pagamento {
-  id             Int             @id @default(autoincrement())
+  id             Int              @id @default(autoincrement())
   id_servico     Int
   id_contratante Int
   id_prestador   Int
-  valor          Decimal         @db.Decimal(10, 2)
-  metodo         metodoPagamento @default(CARTEIRA_PAGBANK)
-  status         statusPagamento @default(PENDENTE)
-  id_pagbank     String?
-  data_pagamento DateTime        @default(now())
-  contratante    contratante     @relation(fields: [id_contratante], references: [id])
-  prestador      prestador       @relation(fields: [id_prestador], references: [id])
-  servico        servico         @relation(fields: [id_servico], references: [id])
+  valor          Decimal          @db.Decimal(10, 2)
+  metodo         metodoPagamento? @default(CARTEIRA_PAGBANK)
+  status         statusPagamento? @default(PENDENTE)
+  id_pagbank     String?          @db.VarChar(255)
+  data_pagamento DateTime?        @default(now()) @db.DateTime(0)
+  servico        servico          @relation(fields: [id_servico], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "pagamento_ibfk_1")
+  contratante    contratante      @relation(fields: [id_contratante], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "pagamento_ibfk_2")
+  prestador      prestador        @relation(fields: [id_prestador], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "pagamento_ibfk_3")
 
-  @@index([id_contratante])
-  @@index([id_prestador])
-  @@index([id_servico])
+  @@index([id_contratante], map: "idx_pagamento_id_contratante")
+  @@index([id_prestador], map: "idx_pagamento_id_prestador")
+  @@index([id_servico], map: "idx_pagamento_id_servico")
   @@map("pagamento")
 }
 
 model carteira {
   id            Int                 @id @default(autoincrement())
-  id_usuario    Int                 @unique
-  chave_pagbank String
-  saldo         Decimal             @default(0.00) @db.Decimal(10, 2)
-  data_criacao  DateTime            @default(now())
-  usuario       usuario             @relation(fields: [id_usuario], references: [id])
+  id_usuario    Int                 @unique(map: "id_usuario")
+  chave_pagbank String              @db.VarChar(255)
+  saldo         Decimal?            @default(0.00) @db.Decimal(10, 2)
+  data_criacao  DateTime?           @default(now()) @db.DateTime(0)
+  usuario       usuario             @relation(fields: [id_usuario], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "carteira_ibfk_1")
   transacoes    transacaoCarteira[]
 
   @@map("carteira")
@@ -212,26 +212,25 @@ model transacaoCarteira {
   id_carteira    Int
   tipo           tipoTransacao
   valor          Decimal       @db.Decimal(10, 2)
-  descricao      String?
-  data_transacao DateTime      @default(now())
-  carteira       carteira      @relation(fields: [id_carteira], references: [id])
+  descricao      String?       @db.Text
+  data_transacao DateTime?     @default(now()) @db.DateTime(0)
+  carteira       carteira      @relation(fields: [id_carteira], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "transacao_carteira_ibfk_1")
 
-  @@index([id_carteira])
+  @@index([id_carteira], map: "idx_transacao_carteira_id_carteira")
   @@map("transacao_carteira")
 }
 
 model localizacao {
   id          Int           @id @default(autoincrement())
-  logradouro  String
-  numero      String?
-  bairro      String
-  cidade      String
-  cep         String?
-  latitude    Decimal
-  longitude   Decimal
+  logradouro  String        @db.VarChar(255)
+  numero      String?       @db.VarChar(50)
+  bairro      String        @db.VarChar(255)
+  cidade      String        @db.VarChar(255)
+  cep         String?       @db.VarChar(20)
+  latitude    Decimal       @db.Decimal(10, 8)
+  longitude   Decimal       @db.Decimal(11, 8)
   contratante contratante[]
   servicos    servico[]
-  prestador   prestador[]   @relation("localizacaotoprestador")
 
   @@map("localizacao")
 }
@@ -239,113 +238,111 @@ model localizacao {
 model contratante {
   id             Int                      @id @default(autoincrement())
   necessidade    contratante_necessidade?
-  id_usuario     Int                      @unique
+  id_usuario     Int                      @unique(map: "id_usuario")
   id_localizacao Int
-  cpf            String?                  @unique
+  cpf            String?                  @unique(map: "cpf") @db.VarChar(255)
   avaliacao      avaliacao[]
   mensagens      chat_servico[]
-  localizacao    localizacao              @relation(fields: [id_localizacao], references: [id])
-  usuario        usuario                  @relation(fields: [id_usuario], references: [id])
+  usuario        usuario                  @relation(fields: [id_usuario], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "contratante_ibfk_1")
+  localizacao    localizacao              @relation(fields: [id_localizacao], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "contratante_ibfk_2")
   pagamento      pagamento[]
   servico        servico[]
 
-  @@index([id_localizacao])
+  @@index([id_localizacao], map: "idx_contratante_id_localizacao")
   @@map("contratante")
 }
 
 model documento {
   id             Int                      @id @default(autoincrement())
   tipo_documento documento_tipo_documento
-  valor          String
-  data_validade  DateTime?
-  arquivo_url    String?
+  valor          String                   @db.VarChar(255)
+  data_validade  DateTime?                @db.DateTime(0)
+  arquivo_url    String?                  @db.Text
   id_prestador   Int
-  prestador      prestador                @relation(fields: [id_prestador], references: [id])
+  prestador      prestador                @relation(fields: [id_prestador], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "documento_ibfk_1")
 
-  @@index([id_prestador])
+  @@index([id_prestador], map: "idx_documento_id_prestador")
   @@map("documento")
 }
 
 model RecusaServico {
-  id           Int      @id @default(autoincrement())
+  id           Int       @id @default(autoincrement())
   id_servico   Int
   id_prestador Int
-  motivo       String?
-  data_recusa  DateTime @default(now())
-  
-  servico   servico   @relation(fields: [id_servico], references: [id], onDelete: Cascade)
-  prestador prestador @relation(fields: [id_prestador], references: [id], onDelete: Cascade)
-  
-  @@unique([id_servico, id_prestador])
+  motivo       String?   @db.Text
+  data_recusa  DateTime? @default(now()) @db.DateTime(0)
+  servico      servico   @relation(fields: [id_servico], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "recusa_servico_ibfk_1")
+  prestador    prestador @relation(fields: [id_prestador], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "recusa_servico_ibfk_2")
+
+  @@unique([id_servico, id_prestador], map: "id_servico")
+  @@index([id_prestador], map: "id_prestador")
   @@map("recusa_servico")
 }
 
 model prestador {
   id           Int                      @id @default(autoincrement())
-  id_usuario   Int                      @unique
+  id_usuario   Int                      @unique(map: "id_usuario")
+  ativo        Boolean?                 @default(false)
   atualizacoes atualizacao_tempo_real[]
   avaliacao    avaliacao[]
   mensagens    chat_servico[]
   documento    documento[]
+  modalidades  modalidade_prestador[]
   pagamento    pagamento[]
+  usuario      usuario                  @relation(fields: [id_usuario], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "prestador_ibfk_1")
   recusas      RecusaServico[]
-  ativo        Boolean                  @default(false)
-  usuario      usuario                  @relation(fields: [id_usuario], references: [id])
   servico      servico[]
-  localizacao  localizacao[]            @relation("localizacaotoprestador")
-  modalidades  modalidade_prestador[] 
 
-  @@index([id_usuario])
   @@map("prestador")
 }
 
 model modalidade_prestador {
-  id                    Int               @id @default(autoincrement())
-  id_prestador          Int
-  tipo                  TipoModalidade
-  modelo_veiculo        String?
-  ano_veiculo           Int?
-  possui_seguro         Boolean           @default(false)
-  compartimento_adequado Boolean          @default(false)
-  revisao_em_dia        Boolean           @default(false)
-  antecedentes_criminais Boolean          @default(false)
-  data_criacao          DateTime          @default(now())
-  prestador             prestador         @relation(fields: [id_prestador], references: [id], onDelete: Cascade)
+  id                     Int            @id @default(autoincrement())
+  id_prestador           Int
+  tipo                   TipoModalidade
+  modelo_veiculo         String?        @db.VarChar(255)
+  ano_veiculo            Int?
+  possui_seguro          Boolean?       @default(false)
+  compartimento_adequado Boolean?       @default(false)
+  revisao_em_dia         Boolean?       @default(false)
+  antecedentes_criminais Boolean?       @default(false)
+  data_criacao           DateTime?      @default(now()) @db.DateTime(0)
+  prestador              prestador      @relation(fields: [id_prestador], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "modalidade_prestador_ibfk_1")
 
-  @@unique([id_prestador, tipo])
+  @@unique([id_prestador, tipo], map: "id_prestador")
   @@map("modalidade_prestador")
 }
 
 model recarga_carteira {
-  id               Int           @id @default(autoincrement())
+  id               Int            @id @default(autoincrement())
   id_usuario       Int
-  valor            Decimal       @db.Decimal(10, 2)
-  metodo           MetodoRecarga @default(PIX)
-  status           StatusRecarga @default(PENDENTE)
-  id_pagbank       String?
-  data_solicitacao DateTime      @default(now())
-  data_confirmacao DateTime?
-  usuario          usuario       @relation(fields: [id_usuario], references: [id])
+  valor            Decimal        @db.Decimal(10, 2)
+  metodo           MetodoRecarga? @default(PIX)
+  status           StatusRecarga? @default(PENDENTE)
+  id_pagbank       String?        @db.VarChar(255)
+  data_solicitacao DateTime?      @default(now()) @db.DateTime(0)
+  data_confirmacao DateTime?      @db.DateTime(0)
+  usuario          usuario        @relation(fields: [id_usuario], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "recarga_carteira_ibfk_1")
 
-  @@index([id_usuario])
+  @@index([id_usuario], map: "idx_recarga_carteira_id_usuario")
   @@map("recarga_carteira")
 }
 
 model usuario {
-  id           Int                 @id @default(autoincrement())
-  nome         String
-  senha_hash   String
-  foto_perfil  String?             @db.VarChar(255)
-  email        String              @unique
-  telefone     String              @unique
-  tipo_conta   usuario_tipo_conta?
-  criado_em    DateTime            @default(now())
-  carteira     carteira?
-  contratante  contratante?
-  notificacoes notificacao[]
-  prestador    prestador?
-  recarga      recarga_carteira[]
-  recuperacoes recuperacaoSenha[]
+  id                Int                 @id @default(autoincrement())
+  nome              String              @db.VarChar(255)
+  senha_hash        String              @db.VarChar(255)
+  foto_perfil       String?             @db.VarChar(255)
+  email             String              @unique(map: "email") @db.VarChar(255)
+  telefone          String              @unique(map: "telefone") @db.VarChar(255)
+  tipo_conta        usuario_tipo_conta?
+  criado_em         DateTime?           @default(now()) @db.DateTime(0)
+  carteira          carteira?
+  contratante       contratante?
+  notificacoes      notificacao[]
+  prestador         prestador?
+  recarga           recarga_carteira[]
+  recuperacao_senha recuperacaoSenha[]
 }
 
 enum statusServico {
@@ -423,6 +420,7 @@ enum TipoModalidade {
   BICICLETA
   A_PE
 }
+
 enum documento_tipo_documento {
   RG
   CPF

@@ -1,4 +1,4 @@
-const prisma = require("../../prisma.js");
+const prisma = require("../../prismaClient.js");
 
 // Inserir transação
 const insertTransacao = async function({ id_carteira, tipo, valor, descricao }) {

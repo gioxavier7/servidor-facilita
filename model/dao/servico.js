@@ -6,7 +6,7 @@
  */
 
 const {statusServico } = require('../../prisma/generated/client')
-const prisma = require("../../prisma.js");
+const prisma = require("../../prismaClient.js");
 
 /**
  * cadastra um novo serviço

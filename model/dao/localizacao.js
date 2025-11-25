@@ -5,7 +5,7 @@
  * versão: 1.0
  */
 
-const prisma = require("../../prisma.js");
+const prisma = require("../../prismaClient.js");
 
 // ================ CREATE =================
 async function createLocalizacao(data) {
