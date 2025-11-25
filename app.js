@@ -61,6 +61,7 @@ const rastreamentoRoutes = require('./routes/rastreamentoRoutes');
 const chatRoutes = require('./routes/chatRoutes');
 const recargaRoutes = require('./routes/recargasRoutes');
 const healthRoutes = require('./routes/healthRoutes');
+const chamadaRoutes = require('./routes/chamadaRoutes');
 
 const cacheMiddleware = require('./middleware/cache');
 
@@ -88,6 +89,8 @@ app.use('/v1/facilita/notificacao', notificacaoRoutes);
 app.use('/v1/facilita/rastreamento', rastreamentoRoutes);
 app.use('/v1/facilita/chat', chatRoutes);
 app.use('/v1/facilita/recarga', recargaRoutes);
+app.use('/v1/facilita/chamada', chamadaRoutes);
+
 
 // ========== FALLBACK 404 ==========
 app.use((req, res) => {
