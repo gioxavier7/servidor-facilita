@@ -61,7 +61,7 @@ const rastreamentoRoutes = require('./routes/rastreamentoRoutes');
 const chatRoutes = require('./routes/chatRoutes');
 const recargaRoutes = require('./routes/recargasRoutes');
 const healthRoutes = require('./routes/healthRoutes');
-const chamadaRoutes = require('./routes/chamadaRoutes');
+const chamadaRoutes = require('./routes/chamadasRoutes');
 
 const cacheMiddleware = require('./middleware/cache');
 
