@@ -1,7 +1,5 @@
-// routes/chamadaRoutes.js
 const express = require('express');
 const router = express.Router();
-const logger = require('../logger');
 const { gerarToken, livekitUrl } = require('../utils/livekit');
 
 router.post('/token', (req, res) => {
