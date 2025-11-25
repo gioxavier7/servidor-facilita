@@ -27,7 +27,7 @@ app.use(bodyParser.json());
 
 // CORS
 const allowedOrigins = [
-  'http://localhost:5173',
+  'https://facilita-front-end.vercel.app',
   process.env.FRONTEND_URL
 ];
 
