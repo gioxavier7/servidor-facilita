@@ -1,4 +1,3 @@
-// utils/livekit.js
 const { AccessToken, RoomServiceClient } = require('@livekit/server-sdk');
 
 const apiKey = process.env.LIVEKIT_API_KEY;
