@@ -19,7 +19,7 @@ async function createOrGetRoom(roomName) {
             // Se não existir, cria
             return await client.video.v1.rooms.create({
                 uniqueName: roomName,
-                type: "go"
+                type: "group"
             });
         }
         throw err;

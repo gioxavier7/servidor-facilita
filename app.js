@@ -69,7 +69,7 @@ const cacheMiddleware = require('./middleware/cache');
 
 // ========== ROTAS SEM RATE LIMIT ==========
 
-app.use('/v1/facilita/health', healthRoutes);
+//app.use('/v1/facilita/health', healthRoutes);
 app.use('/v1/facilita/pagamento/webhook', pagbankWebhookRoutes);
 
 // ========== ROTAS PÚBLICAS ==========

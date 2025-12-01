@@ -532,7 +532,7 @@ const config = {
       "value": "prisma-client-js"
     },
     "output": {
-      "value": "C:\\Users\\omega\\Documents\\servidor-facilita\\prisma\\prisma\\generated\\client",
+      "value": "C:\\Users\\24122285\\Documents\\servidor-facilita\\prisma\\prisma\\generated\\client",
       "fromEnvVar": null
     },
     "config": {
@@ -550,11 +550,11 @@ const config = {
       }
     ],
     "previewFeatures": [],
-    "sourceFilePath": "C:\\Users\\omega\\Documents\\servidor-facilita\\prisma\\schema.prisma",
+    "sourceFilePath": "C:\\Users\\24122285\\Documents\\servidor-facilita\\prisma\\schema.prisma",
     "isCustomOutput": true
   },
   "relativeEnvPaths": {
-    "rootEnvPath": "../../../../.env",
+    "rootEnvPath": null,
     "schemaEnvPath": "../../../../.env"
   },
   "relativePath": "../../..",
