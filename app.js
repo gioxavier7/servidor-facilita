@@ -63,7 +63,7 @@ const chatRoutes = require('./routes/chatRoutes');
 const recargaRoutes = require('./routes/recargasRoutes');
 const healthRoutes = require('./routes/healthRoutes');
 const chamadaRoutes = require('./routes/chamadasRoutes');
-
+const videoRoutes = require('./routes/videoRoutes')
 const cacheMiddleware = require('./middleware/cache');
 
 // ========== ROTAS SEM RATE LIMIT ==========
@@ -90,7 +90,8 @@ app.use('/v1/facilita/notificacao', notificacaoRoutes);
 app.use('/v1/facilita/rastreamento', rastreamentoRoutes);
 app.use('/v1/facilita/chat', chatRoutes);
 app.use('/v1/facilita/recarga', recargaRoutes);
-app.use('/v1/facilita/chamada', chamadaRoutes);
+//app.use('/v1/facilita/chamada', chamadaRoutes);
+app.use('/v1/facilita/chamada', videoRoutes)
 
 
 // ========== FALLBACK 404 ==========

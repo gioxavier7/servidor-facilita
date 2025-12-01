@@ -24,7 +24,7 @@
     "socketio": "^1.0.0",
     "swagger-jsdoc": "^6.2.8",
     "swagger-ui-express": "^5.0.1",
-    "twilio": "^5.10.2",
+    "twilio": "^5.10.6",
     "winston": "^3.18.3",
     "winston-daily-rotate-file": "^5.0.0"
   },
