@@ -1,4 +1,4 @@
-const videoService = require("../service/videoService");
+const videoService = require("../../service/videoService");
 
 module.exports = {
     iniciarChamada: async (req, res) => {
