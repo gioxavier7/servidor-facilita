@@ -29,6 +29,7 @@ app.use(bodyParser.json());
 const allowedOrigins = [
   'https://facilita-front-end.vercel.app',
   'http://10.107.140.32:5173/',
+  'http://localhost:5173/',
   process.env.FRONTEND_URL
 ];
 
@@ -62,7 +63,7 @@ const rastreamentoRoutes = require('./routes/rastreamentoRoutes');
 const chatRoutes = require('./routes/chatRoutes');
 const recargaRoutes = require('./routes/recargasRoutes');
 const healthRoutes = require('./routes/healthRoutes');
-const chamadaRoutes = require('./routes/chamadasRoutes');
+//const chamadaRoutes = require('./routes/chamadasRoutes');
 const videoRoutes = require('./routes/videoRoutes')
 const cacheMiddleware = require('./middleware/cache');
 
