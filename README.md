@@ -1,328 +1,186 @@
-# Facilita API - Fluxo Principal
+# Facilita API
 
-## 📋 Visão Geral
+API back-end de uma plataforma de intermediação de serviços entre pessoas, com foco em **acessibilidade**, **pagamentos integrados** e **comunicação em tempo real**.
 
-A **Facilita API** é uma plataforma completa para conexão entre contratantes e prestadores de serviços, com sistema integrado de pagamentos, chat em tempo real e avaliações.
+Este projeto foi desenvolvido como parte do meu **TCC**, sendo eu responsável **exclusivamente pelo back-end**, desde a arquitetura até as integrações externas.
+
+---
+
+## 📌 Visão Geral
+
+A **Facilita API** é responsável por toda a lógica de negócio de uma plataforma que conecta **contratantes** e **prestadores de serviço**, oferecendo:
+
+- Cadastro e autenticação de usuários
+- Gerenciamento de serviços (criação, aceite, execução e finalização)
+- **Pagamentos via carteira digital**, com integração ao **PagBank**
+- **Chat e atualizações em tempo real** via **WebSocket**
+- Sistema de avaliações
+- Notificações automáticas
+- Suporte a geolocalização
+
+O back-end garante segurança, consistência dos dados e comunicação eficiente com o front-end.
+
+---
+
+## 🛠️ Tecnologias Utilizadas
+
+- **Node.js**
+- **Express**
+- **WebSocket** (comunicação em tempo real)
+- **JWT** (autenticação e autorização)
+- **MySQL**
+- **PagBank API** (PIX, recargas e pagamentos)
+- **Webhooks**
+- **Arquitetura RESTful**
+- **Variáveis de ambiente (.env)**
+
+---
+
+## 🧠 Principais Responsabilidades no Back-end
+
+- Modelagem do banco de dados
+- Implementação das regras de negócio
+- Criação e documentação de endpoints REST
+- Comunicação em tempo real (chat e localização)
+- Integração com gateway de pagamento
+- Validações, autenticação e controle de acesso
+- Webhooks para confirmação de pagamentos
+- Gerenciamento de status e notificações
+
+---
+
+## 🏗️ Arquitetura Geral (Resumo)
+```text
+Front-end
+   ↓
+API REST (Node.js / Express)
+   ↓
+Regras de Negócio
+   ↓
+Banco de Dados (MySQL)
+   ↓
+PagBank API (Pagamentos)
+   ↓
+WebSocket (Chat e tempo real)
+```
+
+---
 
 ## 🔄 Fluxo Principal da Aplicação
 
-### 1. 📝 Cadastro de Usuário
-**Endpoint:** `POST /cadastrar-usuario`
-
-**Pré-requisitos:**
-- Nome, email, telefone e senha válidos
-- Validações de segurança aplicadas
-
-**Resultado:**
-- Usuário cadastrado
-- Token JWT gerado
-- Próximo passo: escolher tipo de conta
+1. **Cadastro do usuário**
+2. Escolha do tipo de conta: **Contratante** ou **Prestador**
+3. Criação da **carteira digital**
+4. Contratante cria um serviço
+5. Prestador visualiza e aceita o serviço
+6. Serviço é executado
+7. Contratante confirma a conclusão
+8. Pagamento é processado
+9. Avaliação opcional do serviço
 
 ---
 
-### 2. 🔧 Escolha do Tipo de Conta
+## 💳 Fluxo de Pagamento
 
-**Opção A - Contratante**
-**Endpoint:** `POST /cadastrar-contratante`
+### Cenário 1 — Saldo suficiente
+- Débito da carteira do contratante
+- Crédito na carteira do prestador
+- Serviço marcado como **PAGO**
 
-**Opção B - Prestador**
-**Endpoint:** `POST /cadastrar-prestador`
-
-**Pré-requisitos:**
-- Usuário autenticado
-- Dados específicos do tipo de conta
-
-**Resultado:**
-- Perfil criado (contratante ou prestador)
-- Token JWT atualizado com tipo de conta
-- Acesso liberado às funcionalidades específicas
+### Cenário 2 — Saldo insuficiente
+- Solicitação de recarga via **PIX**
+- Confirmação automática via **Webhook PagBank**
+- Processamento do pagamento do serviço
 
 ---
 
-### 3. 💳 Criação de Carteira Digital
-**Endpoint:** `POST /criar-carteira`
+## 💬 Comunicação em Tempo Real
 
-**Pré-requisitos:**
-- Usuário autenticado
-- Chave PagBank válida
-
-**Resultado:**
-- Carteira criada com saldo inicial
-- Pronta para receber e realizar pagamentos
-
----
-
-### 4. 🛠️ Solicitação de Serviço (Contratante)
-**Endpoints:**
-- `POST /servicos`
-- `POST /servicos/categoria/:categoriaId`
-
-**Pré-requisitos:**
-- Autenticação como CONTRATANTE
-- Carteira criada
-- Dados do serviço (categoria, descrição, localização)
-
-**Resultado:**
-- Serviço criado com status "PENDENTE"
-- Valor calculado automaticamente
-- Disponível para prestadores
-
----
-
-### 5. 👀 Visualização de Serviços (Prestador)
-**Endpoint:** `GET /servicos/disponiveis`
-
-**Pré-requisitos:**
-- Autenticação como PRESTADOR
-- Carteira criada
-
-**Resultado:**
-- Lista de serviços pendentes
-- Filtros por categoria e localização
-
----
-
-### 6. ✅ Aceitação do Serviço (Prestador)
-**Endpoint:** `POST /servicos/:id/aceitar`
-
-**Pré-requisitos:**
-- Autenticação como PRESTADOR
-- Serviço com status "PENDENTE"
-- Sem outros serviços em andamento
-
-**Resultado:**
-- Serviço atribuído ao prestador
-- Status muda para "EM_ANDAMENTO"
-- Notificação enviada ao contratante
-
----
-
-### 7. 🏁 Finalização do Serviço (Prestador)
-**Endpoint:** `POST /servicos/:id/finalizar`
-
-**Pré-requisitos:**
-- Autenticação como PRESTADOR
-- Serviço com status "EM_ANDAMENTO"
-- Serviço pertence ao prestador
-
-**Resultado:**
-- Status muda para "AGUARDANDO_CONFIRMACAO"
-- Notificação enviada ao contratante
-
----
-
-### 8. ✔️ Confirmação de Conclusão (Contratante)
-**Endpoint:** `POST /servicos/:id/confirmar`
-
-**Pré-requisitos:**
-- Autenticação como CONTRATANTE
-- Serviço com status "AGUARDANDO_CONFIRMACAO"
-- Serviço pertence ao contratante
-
-**Resultado:**
-- Status muda para "FINALIZADO"
-- Pagamento liberado para processamento
-- Notificação enviada ao prestador
-
----
-
-## 💰 Fluxo de Pagamento
-
-### ✅ Cenário A: Saldo Suficiente
-**Endpoint:** `POST /pagamentos/carteira`
-
-**Fluxo:**
-Contratante com saldo suficiente
-                ↓
-Pagamento interno via transferência
-                ↓
-Débito na carteira do contratante
-                ↓
-Crédito na carteira do prestador
-                ↓
-Serviço marcado como PAGO
-
-### 🔄 Cenário B: Saldo Insuficiente
-**Endpoints:**
-
-POST `/recargas/solicitar` - Solicita recarga via PIX
-
-Webhook - Confirmação automática da recarga
-
-POST `/pagamentos/carteira` - Processa pagamento**
-
-
----
-
-### 9. ⭐ Avaliação do Serviço (Opcional)
-**Endpoint:** `POST /avaliacoes`
-
-**Pré-requisitos:**
-- Autenticação como CONTRATANTE
-- Serviço com status "FINALIZADO"
-- Serviço pertence ao contratante
-
-**Resultado:**
-- Avaliação registrada (nota 1-5 + comentário)
-- Feedback disponível publicamente
-- Melhoria do rating do prestador
-
----
-
-## 📁 Estrutura Completa de Endpoints
-
-### 👤 Autenticação & Usuários
-
-| Método | Endpoint | Descrição |
-|--------|----------|-----------|
-| `POST` | `/usuario/register` | Cadastra novo usuário no sistema |
-| `POST` | `/login` | Login com email/telefone e senha |
-| `POST` | `/recuperar-senha/solicitar` | Solicita recuperação de senha |
-| `POST` | `/recuperar-senha/verificar` | Verifica código de recuperação |
-| `POST` | `/recuperar-senha/redefinir` | Redefine senha com código válido |
-| `POST` | `/cadastrar-contratante` | Completa cadastro como contratante |
-| `POST` | `/cadastrar-prestador` | Completa cadastro como prestador |
-| `PUT` | `/atualizar-perfil` | Atualiza dados do usuário |
-
-### 🛠️ Serviços
-
-| Método | Endpoint | Descrição |
-|--------|----------|-----------|
-| `POST` | `/servicos` | Cria novo serviço (contratante) |
-| `POST` | `/servicos/categoria/:categoriaId` | Cria serviço por categoria pré-definida |
-| `GET` | `/servicos/disponiveis` | Lista serviços disponíveis (prestador) |
-| `GET` | `/servicos/prestador` | Lista serviços do prestador logado |
-| `GET` | `/servicos/contratante` | Lista serviços do contratante logado |
-| `POST` | `/servicos/:id/aceitar` | Aceita serviço (prestador) |
-| `POST` | `/servicos/:id/finalizar` | Finaliza serviço (prestador) |
-| `POST` | `/servicos/:id/confirmar` | Confirma conclusão (contratante) |
-
-### 💳 Pagamentos & Carteira
-
-| Método | Endpoint | Descrição |
-|--------|----------|-----------|
-| `POST` | `/criar-carteira` | Cria carteira digital do usuário |
-| `GET` | `/carteira` | Consulta saldo e dados da carteira |
-| `POST` | `/recargas/solicitar` | Solicita recarga via PIX |
-| `POST` | `/pagamentos/carteira` | Paga serviço com saldo da carteira |
-| `POST` | `/transacoes/registrar` | Registra transação manual |
-| `GET` | `/transacoes/:id` | Lista transações da carteira |
-| `POST` | `/webhook/pagamento` | Webhook para notificações PagBank |
-
-### ⭐ Avaliações
-
-| Método | Endpoint | Descrição |
-|--------|----------|-----------|
-| `POST` | `/avaliacoes` | Avalia serviço finalizado |
-| `GET` | `/avaliacoes/prestador/:id` | Busca avaliações de um prestador |
-| `GET` | `/avaliacoes/servico/:id` | Busca avaliação de um serviço |
-
-### 💬 Chat
-
-| Método | Endpoint | Descrição |
-|--------|----------|-----------|
-| `POST` | `/chat/:id/enviar` | Envia mensagem no chat do serviço |
-| `GET` | `/chat/:id/mensagens` | Busca mensagens do chat |
-| `POST` | `/chat/:id/marcar-lidas` | Marca mensagens como lidas |
-
-### 🔔 Notificações
-
-| Método | Endpoint | Descrição |
-|--------|----------|-----------|
-| `GET` | `/notificacoes` | Lista notificações do usuário |
-| `POST` | `/notificacoes/:id/marcar-lida` | Marca notificação como lida |
-| `POST` | `/notificacoes/marcar-todas-lidas` | Marca todas notificações como lidas |
-
----
-
-## 🔗 Integrações & Recursos
-
-### 💳 PagBank
-- Pagamentos PIX e transferências internas
-- Webhook para confirmação automática
-- Sistema de recarga de carteira
-
-### 💬 WebSocket
-- Chat em tempo real entre contratante e prestador
+Utilização de **WebSocket** para:
+- Chat entre contratante e prestador
+- Atualização de status de mensagens
 - Notificações instantâneas
-- Status de mensagens (enviada, entregue, lida)
+- Compartilhamento de localização em tempo real durante o serviço
 
-### 🔔 Sistema de Notificações
-- Alertas de mudança de status de serviços
-- Notificações de pagamento
-- Lembretes e atualizações importantes
+---
 
-### 📊 Sistema de Avaliações
-- Rating de 1 a 5 estrelas
-- Comentários públicos
-- Estatísticas de prestadores
-- Histórico de avaliações
+## 📁 Estrutura de Endpoints (Resumo)
 
-### 🗺️ Geolocalização
-- Cálculo automático de distâncias
-- Definição de áreas de atendimento
-- Valor baseado na localização
+### Autenticação & Usuários
+- Cadastro e login
+- Recuperação de senha
+- Atualização de perfil
+- Definição do tipo de conta
 
-### 🔐 Autenticação JWT
-- Tokens seguros com expiração
-- Refresh token automático
+### Serviços
+- Criação
+- Listagem
+- Aceite
+- Finalização
+- Confirmação
+
+### Pagamentos & Carteira
+- Criação de carteira
+- Recargas via PIX
+- Pagamento de serviços
+- Webhooks PagBank
+
+### Chat & Notificações
+- Mensagens em tempo real
+- Histórico de chat
+- Marcação de mensagens
+- Notificações automáticas
+
+### Avaliações
+- Avaliação de serviços finalizados
+- Consulta de avaliações por prestador
+
+> 📌 A documentação completa dos endpoints está disponível na ferramenta de documentação da API.
+
+---
+
+## 🔐 Autenticação
+
+- Autenticação baseada em **JWT**
+- Tokens com expiração
 - Controle de acesso por tipo de conta
+- Proteção de rotas sensíveis
 
 ---
 
-## ⚠️ Pré-requisitos Importantes
+## ⚙️ Requisitos Técnicos
 
-### Para Contratantes:
-- ✅ Carteira digital criada
-- ✅ Saldo suficiente para pagamentos
-- ✅ Dados de localização cadastrados
-
-### Para Prestadores:
-- ✅ Carteira digital criada
-- ✅ Documentos válidos (CPF obrigatório)
-- ✅ Áreas de atendimento definidas
-
-### Configurações de Ambiente:
-- 🔧 Tokens PagBank configurados
-- 🌐 URL de webhook configurada
-- 🔌 WebSocket configurado
-- 🔑 Variáveis de ambiente JWT definidas
-
-### Requisitos Técnicos:
 - Node.js 16+
-- Banco de dados PostgreSQL
+- MySQL
 - Servidor com suporte a WebSocket
-- SSL/TLS para produção
+- SSL/TLS (produção)
+- Conta PagBank (sandbox ou produção)
 
 ---
 
-## 🚀 Status Codes Comuns
+## 🚀 Como Executar o Projeto
 
-| Código | Descrição | Cenários |
-|--------|-----------|----------|
-| `200` | OK | Requisição bem-sucedida |
-| `201` | Created | Recurso criado com sucesso |
-| `400` | Bad Request | Dados inválidos ou faltantes |
-| `401` | Unauthorized | Token inválido ou expirado |
-| `403` | Forbidden | Acesso negado (tipo de conta) |
-| `404` | Not Found | Recurso não encontrado |
-| `409` | Conflict | Recurso já existe |
-| `500` | Internal Server Error | Erro interno do servidor |
+```bash
+# Instalar dependências
+npm install
 
+# Configurar variáveis de ambiente
+cp .env.example .env
+
+# Iniciar o servidor
+npm run dev
+```
 ---
 
-## 📞 Suporte
+## 📌 Observações
 
-Para dúvidas técnicas ou problemas com a API:
+Este projeto tem foco educacional e demonstrativo, mas segue boas práticas de desenvolvimento back-end, arquitetura e integração com serviços externos.
 
-1. **Documentação Completa:** Consulte a documentação no Apidog
-2. **Exemplos de Uso:** Verifique os exemplos de implementação
-3. **Suporte Técnico:** Entre em contato com a equipe de desenvolvimento
+## 👩‍💻 Autoria
 
----
+Projeto desenvolvido por **Giovanna Soares Xavier**  
+Back-end Developer | Node.js
 
-**🎯 Total de Endpoints: 32**
+## 📬 Contato
 
-**Última atualização:** 21/10/2025
-
-*Esta documentação é mantida atualizada conforme novas funcionalidades são implementadas.*
+Caso queira conversar sobre o projeto ou sobre a parte técnica do back-end, fique à vontade para entrar em contato pelo [LinkedIn](https://www.linkedin.com/in/giovannaxavier7/).
